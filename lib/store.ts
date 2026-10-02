@@ -3,10 +3,11 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
-  betOutcome, daysUntil, drawOffer, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
+  daysUntil, drawOffer, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
   type Attempt, type Concept, type ConceptState, type Confidence, type ExamResult, type OptionId, type Question,
 } from "./engine";
 import { LINES } from "./copy";
+import { betOutcome, calibrationBonus, calibrationGap, calibrationGrade } from "./economy";
 import type { SpecialKind } from "./board";
 
 export type Screen = "setup" | "intro" | "hub" | "draw" | "question" | "reveal" | "board" | "summary" | "shop" | "report" | "settings";
@@ -46,14 +47,19 @@ export interface Session {
   retrying: boolean;
   eliminated: OptionId[];
   pendingBalls: number;
+  pendingChips: number; // the bet payout, paid with the drop
   dropSeed: number;
   chipsEarned: number;
-  chipsLost: number;
+  skillChips: number; // from correct answers and calibration
+  chanceChips: number; // from buckets, the wheel and other specials
+  debtAdded: number;
+  calBonus?: number; // paid at the end of a Shift
   bombsPlanted: string[];
   bombsDefused: string[];
   readinessBefore: number;
   correct: number;
-  streakMult: number; // chip multiplier earned by the answer whose balls are waiting to drop
+  mult: number; // multiplier of the answer whose drop is waiting (streak, later Peg Hand)
+  streakMult?: number; // older saves
   finished?: boolean; // reached the summary
   resume?: Screen; // where to pick up if you left mid-session
 }
@@ -69,7 +75,9 @@ export interface Reveal {
   confidence: Confidence;
   correct: boolean;
   balls: number;
-  chipPenalty: number;
+  chips: number; // bet payout, before the board
+  debt: number; // Ledger debt added
+  mult: number;
   bombPlanted: boolean;
   bombDefused: boolean;
   secondChance: boolean;
@@ -95,6 +103,7 @@ interface Data {
   conceptState: Record<string, ConceptState>;
   attempts: Attempt[];
   chips: number;
+  debt: number; // Ledger debt: no floor, never comes out of chips
   inventory: { secondChance: number; magnet: boolean; mega: boolean; quake: boolean; pegs: SpecialKind[] };
   settings: Settings;
   shiftsDone: number;
@@ -117,7 +126,7 @@ interface Actions {
   choose(conceptId: string): void;
   answer(chosen: OptionId, confidence: Confidence): void;
   continueReveal(): void;
-  finishDrop(chips: number): void;
+  finishDrop(chips: number, skill?: number): void;
   buy(item: ShopItem, conceptId?: string): void;
   flag(questionId: string): void;
   updateSettings(s: Partial<Settings>): void;
@@ -133,6 +142,7 @@ const initial: Data = {
   conceptState: {},
   attempts: [],
   chips: START_CHIPS,
+  debt: 0,
   inventory: { secondChance: 0, magnet: false, mega: false, quake: false, pegs: [] },
   settings: { skin: "retro", calm: false, dailyCap: 6, sound: true, reducedMotion: false },
   shiftsDone: 0,
@@ -154,8 +164,8 @@ export const useGame = create<Data & Actions>()(
       const ready = () => readiness(states(), get().exam);
 
       const newSession = (kind: SessionKind, total: number, plan: string[] = []): Session => ({
-        kind, total, plan, answered: 0, recent: [], offer: [], retrying: false, eliminated: [], pendingBalls: 0,
-        dropSeed: 0, chipsEarned: 0, chipsLost: 0, bombsPlanted: [], bombsDefused: [], readinessBefore: ready(), correct: 0, streakMult: 1,
+        kind, total, plan, answered: 0, recent: [], offer: [], retrying: false, eliminated: [], pendingBalls: 0, pendingChips: 0,
+        dropSeed: 0, chipsEarned: 0, skillChips: 0, chanceChips: 0, debtAdded: 0, bombsPlanted: [], bombsDefused: [], readinessBefore: ready(), correct: 0, mult: 1,
       });
 
       const showDraw = (session: Session) => {
@@ -169,8 +179,11 @@ export const useGame = create<Data & Actions>()(
           return;
         }
         const drop = Math.max(0, ready() - session.readinessBefore);
+        // calibration pays: a Shift ends with 3 chips per calibration grade point (last 20 answers)
+        const calBonus = session.kind === "shift" ? calibrationBonus(calibrationGrade(calibrationGap(get().attempts))) : 0;
         set((s) => ({
-          session: { ...session, finished: true },
+          chips: s.chips + calBonus,
+          session: { ...session, finished: true, calBonus, skillChips: (session.skillChips ?? 0) + calBonus, chipsEarned: session.chipsEarned + calBonus },
           screen: "summary",
           line: LINES.endShift(drop),
           shiftsDone: s.shiftsDone + (session.kind === "shift" ? 1 : 0),
@@ -266,19 +279,20 @@ export const useGame = create<Data & Actions>()(
               attempts: [...s.attempts, attempt],
               inventory: { ...s.inventory, secondChance: s.inventory.secondChance - 1 },
               session: { ...session, retrying: true, eliminated: [...session.eliminated, chosen] },
-              reveal: { ...base, balls: 0, chipPenalty: 0, bombPlanted: false, bombDefused: false, secondChance: true, line: LINES.secondChance, streak: s.streak, lostStreak: 0 },
+              reveal: { ...base, balls: 0, chips: 0, debt: 0, mult: 1, bombPlanted: false, bombDefused: false, secondChance: true, line: LINES.secondChance, streak: s.streak, lostStreak: 0 },
               screen: "reveal",
             });
             return;
           }
 
-          const out = betOutcome(confidence, correct);
           const exam = session.kind === "exam";
+          // the multiplier you're playing at scales the gain if right and the debt if wrong, so honest bets stay best
+          const mult = exam ? 1 : streakMultiplier(s.streak + 1);
+          const out = exam ? { chips: 0, debt: 0, balls: 0, plantBomb: betOutcome(confidence, correct).plantBomb } : betOutcome(confidence, correct, mult);
           const streak = exam ? s.streak : correct ? s.streak + 1 : 0; // Exam Day doesn't touch the streak
           const before = s.conceptState[q.conceptId];
           const after = updateState(before, { confidence, correct }, days(), now);
           const bombDefused = before.bombActive && !after.bombActive;
-          const penalty = exam ? 0 : Math.min(s.chips, out.chipPenalty);
           const line = out.plantBomb
             ? LINES.certainWrong
             : bombDefused
@@ -290,19 +304,20 @@ export const useGame = create<Data & Actions>()(
           set({
             attempts: [...s.attempts, attempt],
             conceptState: { ...s.conceptState, [q.conceptId]: after },
-            chips: s.chips - penalty,
+            debt: s.debt + out.debt,
             streak,
-            reveal: { ...base, balls: exam ? 0 : out.balls, chipPenalty: penalty, bombPlanted: out.plantBomb, bombDefused, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
+            reveal: { ...base, balls: out.balls, chips: out.chips, debt: out.debt, mult, bombPlanted: out.plantBomb, bombDefused, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
             session: {
               ...session,
               answered: session.answered + 1,
               recent: [...session.recent, q.conceptId],
               retrying: false,
               eliminated: [],
-              pendingBalls: exam ? 0 : out.balls,
+              pendingBalls: out.balls,
+              pendingChips: out.chips,
               dropSeed: s.attempts.length + 1,
-              streakMult: correct && !exam ? streakMultiplier(streak) : 1,
-              chipsLost: session.chipsLost + penalty,
+              mult,
+              debtAdded: (session.debtAdded ?? 0) + out.debt,
               correct: session.correct + (correct ? 1 : 0),
               bombsPlanted: out.plantBomb ? [...session.bombsPlanted, q.conceptId] : session.bombsPlanted,
               bombsDefused: bombDefused ? [...session.bombsDefused, q.conceptId] : session.bombsDefused,
@@ -319,12 +334,23 @@ export const useGame = create<Data & Actions>()(
           // Shift and Defuser answers drop on the board beside the reveal; finishDrop moves on
         },
 
-        finishDrop(raw) {
+        finishDrop(raw, rawSkill = 0) {
           const { session } = get();
           if (!session) return;
-          const chips = Math.round(raw * (session.streakMult ?? 1));
-          set((s) => ({ chips: s.chips + chips }));
-          next({ ...session, pendingBalls: 0, streakMult: 1, chipsEarned: session.chipsEarned + chips });
+          // the multiplier rewards knowing, so it scales the bet payout (already in pendingChips) but never the board's luck
+          const board = Math.round(raw);
+          const boardSkill = Math.min(board, Math.round(rawSkill)); // popup questions answered right
+          const answer = session.pendingChips ?? 0;
+          set((s) => ({ chips: s.chips + answer + board }));
+          next({
+            ...session,
+            pendingBalls: 0,
+            pendingChips: 0,
+            mult: 1,
+            chipsEarned: session.chipsEarned + answer + board,
+            skillChips: (session.skillChips ?? 0) + answer + boardSkill,
+            chanceChips: (session.chanceChips ?? 0) + board - boardSkill,
+          });
         },
 
         buy(item, conceptId) {

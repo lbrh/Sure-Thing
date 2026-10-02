@@ -59,7 +59,8 @@ describe("golden path", () => {
     expect(g().session!.questionId).toBe("nulls-1");
     g().answer("A", "certain");
     expect(g().reveal!.bombPlanted).toBe(true);
-    expect(g().chips).toBe(1);
+    expect(g().chips).toBe(5); // debt never comes out of chips
+    expect(g().debt).toBe(12);
     expect(g().conceptState.nulls.bombActive).toBe(true);
     drop();
     const asked: string[] = ["nulls"];
@@ -77,8 +78,9 @@ describe("golden path", () => {
     expect(g().session!.bombsDefused).toContain("nulls");
     expect(g().screen).toBe("summary");
     expect(g().shiftsDone).toBe(1);
-    expect(g().chips).toBeGreaterThan(1);
     expect(g().chips).toBeGreaterThanOrEqual(10); // enough for a Defuser, as in the demo script
+    expect(g().debt).toBe(12); // defusing never refunds the debt
+    expect(g().session!.skillChips / (g().session!.skillChips + g().session!.chanceChips)).toBeGreaterThanOrEqual(0.8);
 
     // Shop: earn enough, then buy a Second Chance; chips never go negative
     useGame.setState({ chips: 20 });
@@ -91,9 +93,11 @@ describe("golden path", () => {
     g().choose(g().session!.offer[0]);
     const q = g().questions.find((x) => x.id === g().session!.questionId)!;
     const chipsBefore = g().chips;
+    const debtBefore = g().debt;
     g().answer(wrongOf(q.correct), "certain");
     expect(g().reveal!.secondChance).toBe(true);
     expect(g().chips).toBe(chipsBefore);
+    expect(g().debt).toBe(debtBefore);
     expect(g().conceptState[q.conceptId].bombActive).toBe(false);
     g().continueReveal();
     expect(g().screen).toBe("question");
@@ -166,7 +170,7 @@ describe("streaks and resuming", () => {
     expect([0, 1, 2, 3, 4, 5, 9].map(streakMultiplier)).toEqual([1, 1, 1.5, 2, 2.5, 3, 3]);
   });
 
-  it("correct answers build the streak, it multiplies drop chips, and a miss resets it", async () => {
+  it("correct answers build the streak, it multiplies the bet payout, and a miss resets it", async () => {
     await fresh();
     g().startShift();
     for (let i = 1; i <= 3; i++) {
@@ -174,15 +178,21 @@ describe("streaks and resuming", () => {
       right();
       expect(g().streak).toBe(i);
       expect(g().reveal!.streak).toBe(i);
+      const m = [1, 1.5, 2][i - 1];
+      expect(g().reveal!.chips).toBe(Math.round(4 * m));
       const before = g().chips;
       g().finishDrop(10); // pretend the board paid 10
-      expect(g().chips - before).toBe(Math.round(10 * [1, 1.5, 2][i - 1]));
+      expect(g().chips - before).toBe(Math.round(4 * m) + 10); // the board's luck is never multiplied
     }
+    // the multiplier you play at scales the debt just the same
     g().choose(g().session!.offer[0]);
     const q = g().questions.find((x) => x.id === g().session!.questionId)!;
-    g().answer(q.correct === "A" ? "B" : "A", "guess");
+    const chips = g().chips;
+    g().answer(q.correct === "A" ? "B" : "A", "certain");
     expect(g().streak).toBe(0);
     expect(g().reveal!.lostStreak).toBe(3);
+    expect(g().reveal!.debt).toBe(12 * 2.5);
+    expect(g().chips).toBe(chips);
   });
 
   it("leaving a Shift for the Shop keeps your place, including an undropped answer", async () => {

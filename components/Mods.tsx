@@ -19,7 +19,7 @@ export const ITEM_INFO: Record<ShopItem, { name: string; effect: string; joke: s
   quiz21: { kind: "peg", name: "21 Quiz Peg", effect: "Catches the ball for a quick quiz. Each question is worth 2 to 10 by difficulty, shown first. After each right answer, hit for another or stand. Go over 21 or miss one and only the hand bonus is lost. Every right answer still pays 1.", joke: "Pontoon, but it's a pop quiz.", odds: "Bonus = hand / 3, rounded. Exactly 21 doubles it. No chance involved once you see the next question's value." },
   quiz: { kind: "peg", name: "Pop Quiz Peg", effect: "Catches the ball and fires a question from your unit. The faster you get it right, the bigger the multiplier.", joke: "Even the chaos makes you revise. Quickly.", odds: `Right within ${QUIZ_FAST_MS / 1000}s x10, sliding to x2 by ${QUIZ_SLOW_MS / 1000}s · Wrong keeps the ball at x1. No mastery change.` },
   splitter: { kind: "peg", name: "Splitter Peg", effect: "Splits a ball into three. The copies keep what the original had earned so far.", joke: "Mitosis, but for points." },
-  blackhole: { kind: "peg", name: "Black Hole", effect: "Sucks nearby balls in and warps them back to the top for another run, +2 for the trip.", joke: "Spaghettification sold separately." },
+  blackhole: { kind: "peg", name: "Black Hole", effect: "Sucks nearby balls in and warps them back to the top for another run, +1 peg value for the trip.", joke: "Spaghettification sold separately." },
   bumper: { kind: "peg", name: "Bumper", effect: "A big pinball bumper. BOING.", joke: "Some pegs just want to be loud." },
 };
 

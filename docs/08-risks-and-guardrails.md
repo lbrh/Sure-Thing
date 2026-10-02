@@ -32,7 +32,7 @@ Not so different:
 1. **No real money, ever.** No purchasable chips, no cash-out, no transfer, no prizes with cash value.
 2. **No loot boxes or paid randomness.** Nothing random is for sale.
 3. **Learning is never locked behind losses.** Wrong answers do not cost lives, start timers or block content.
-4. **Chips floor at zero.** No chip debt. Wrong answers never reduce mastery beyond normal Leitner movement.
+4. **Chips never go negative, and penalties never come out of chips.** A wrong bet adds Ledger debt, a separate account that only touches the Ledger Pot payout and the Exam Day summary. Defusing a bomb never refunds the debt. Wrong answers never reduce mastery beyond normal Leitner movement.
 5. **No near-miss tricks, and celebrations only for real gains.** No "so close!" animations or audio, no slow motion or zoom before a hit lands, no strobing jackpot lights. A celebration fires only when a payout beats what the ball already had, and its size grows with the gain (NICE!, SUPER DROP!, MEGA HIT!). It never strobes the background, and only the biggest level shakes the screen. Off in Calm mode and with reduced motion.
 6. **Game show, not casino.** No reels, playing cards or suits, felt, roulette wheels, dollar signs or lucky sevens. Chance devices are styled as TV game show props (a Prize Wheel with a bulb rim, a 21 Quiz buzzer) inside the Win95 look. A chance device never takes a stake: the Prize Wheel only spins after a ball is caught, has no zero segment and only adds chips, and its odds are printed beside it. In Calm mode every chance device pays its expected value instantly.
 7. **Transparent odds.** The scoring table is on screen near every bet and in Settings.
@@ -51,7 +51,7 @@ The team chose option 2 of the earlier open decision: keep the mechanics, drop t
 - **MEGA HIT is now proportional.** See rule 5.
 - **Pop Quiz** no longer zeroes the ball on a wrong answer. The ball keeps its value.
 
-What holds: no money in or out, chips cannot be bought, odds are shown on every shop card and popup, randomness is never sold for money, retests stay free in the Draw, and chips floor at zero. The "never use" list in doc 10, section 3.3 applies.
+What holds: no money in or out, chips cannot be bought, odds are shown on every shop card and popup, randomness is never sold for money, retests stay free in the Draw, and chips never go negative. The "never use" list in doc 10, section 3.3 applies.
 
 ### Pre-launch actions
 
@@ -74,7 +74,7 @@ What holds: no money in or out, chips cannot be bought, odds are shown on every 
 
 | Risk | Mitigation |
 |---|---|
-| Stress from penalties. A physiology study of certainty-based marking suggests a majority agreed it added some unnecessary stress (check the paper, the excerpt's columns were not fully clear) [8] | Penalties cost only chips, never marks. Floor at zero. Soft copy. Calm mode |
+| Stress from penalties. A physiology study of certainty-based marking suggests a majority agreed it added some unnecessary stress (check the paper, the excerpt's columns were not fully clear) [8] | Penalties go to Ledger debt, never chips and never marks. Soft copy. Calm mode |
 | Over-studying or compulsive play | Daily Shift cap, break messages, no streak loss, no push notifications that guilt |
 | Exam anxiety | Neutral tone, no ranking, readiness shown as estimate with next steps |
 | Feeling judged by The Collector | Tone rules: dry, never insulting, never about effort or ability |

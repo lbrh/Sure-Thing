@@ -11,7 +11,7 @@ export const LINES = {
   bombPlanted: (concept: string) => `I've put a little something on ${concept}. We'll revisit.`,
   bombDefused: "Defused. I'm taking that off the ledger.",
   secondChance: "Second Chance. That one's on the house. Try again.",
-  endShift: (drop: number) => (drop > 0 ? `Debt down ${drop}%. Don't get comfortable.` : "Debt holding steady. The ledger is patient."),
+  endShift: (drop: number) => (drop > 0 ? `Readiness up ${drop} points. Don't get comfortable.` : "Readiness holding steady. The ledger is patient."),
   cap: "Enough for today. Your brain files things while you sleep. See you tomorrow.",
   exam: "Exam Day. No chips, no shop. Just you and the ledger.",
   hub: "Back again. The ledger's open.",

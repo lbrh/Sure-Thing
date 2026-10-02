@@ -1,4 +1,5 @@
-// Pure game maths. Everything deterministic lives here; the model only writes content.
+// Pure game maths. Everything deterministic lives here; the model only writes content. Economy maths: lib/economy.ts.
+import { CAL_P } from "./economy";
 
 export type Confidence = "guess" | "pretty" | "certain";
 export type PegState = "cold" | "shaky" | "solid" | "bomb";
@@ -52,17 +53,9 @@ export interface ConceptState {
   dueAt: string;
 }
 
-export const CONF_P: Record<Confidence, number> = { guess: 0.4, pretty: 0.7, certain: 0.9 };
-export const BALLS: Record<Confidence, number> = { guess: 1, pretty: 2, certain: 3 };
-export const PENALTY: Record<Confidence, number> = { guess: 0, pretty: 1, certain: 4 };
+export const CONF_P = CAL_P;
 const INTERVAL_DAYS: Record<Box, number> = { 1: 0, 2: 1, 3: 3, 4: 7, 5: 14 };
 const DAY = 86_400_000;
-
-export function betOutcome(confidence: Confidence, correct: boolean) {
-  return correct
-    ? { balls: BALLS[confidence], chipPenalty: 0, plantBomb: false }
-    : { balls: 0, chipPenalty: PENALTY[confidence], plantBomb: confidence === "certain" };
-}
 
 export function newConceptState(conceptId: string, now = new Date()): ConceptState {
   return {
@@ -271,7 +264,7 @@ export function examConcepts(states: ConceptState[], n: number, seed: number): s
   return out;
 }
 
-/** Chip multiplier for a run of correct answers: x1, x1.5, x2, x2.5, then capped at x3. */
+/** Multiplier for a run of correct answers: x1, x1.5, x2, x2.5, then capped at x3. Scales gains and debts equally. */
 export const STREAK_CAP = 3;
 export function streakMultiplier(streak: number): number {
   return streak <= 1 ? 1 : Math.min(STREAK_CAP, 1 + 0.5 * (streak - 1));

@@ -26,7 +26,7 @@ export interface BoardProps {
   states: Record<string, PegState>;
   drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean } | null;
   showMega?: boolean; // static preview of next Shift's mega bucket
-  onDone?: (chips: number) => void;
+  onDone?: (chips: number, skill: number) => void;
   /** Captured ball: show a popup, then call release(result). Leave unset to auto-play. Calm mode pays the wheel's expected value without asking. */
   onHold?: (hold: Hold, release: (r: HoldResult) => void) => void;
   onCheer?: (level: 1 | 2 | 3, value: number) => void;
@@ -74,7 +74,7 @@ export default function Board(props: BoardProps) {
       if (doneRef.current) return;
       doneRef.current = true;
       setRunning(false);
-      live.current.onDone?.(sim.current?.chips ?? 0);
+      live.current.onDone?.(sim.current?.chips ?? 0, sim.current?.skill ?? 0);
     };
     if (drop && drop.balls === 0) queueMicrotask(finish);
     if (sim.current && reducedMotion) sim.current.resolve();

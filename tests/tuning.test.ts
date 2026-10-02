@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import Matter from "matter-js";
 import { CHUTES, MIN_IMPACT, createDrop, layoutPegs, placeSpecials } from "@/lib/board";
-import type { PegState } from "@/lib/engine";
+import { rng, streakMultiplier, type Attempt, type PegState } from "@/lib/engine";
+import { bestBet, betOutcome, calibrationBonus, calibrationGap, calibrationGrade, skillShare, SKILL_TARGET } from "@/lib/economy";
 
 const ids = Array.from({ length: 12 }, (_, i) => `c${i}`);
 const pegs = layoutPegs(ids, 42);
@@ -159,5 +160,40 @@ describe("grazes don't score", () => {
     }
     expect(grazes).toBeGreaterThan(50); // grazes really happen...
     expect(scored).toBeLessThanOrEqual(solidHits); // ...but only real hits ever score
+  });
+});
+
+describe("skill share", () => {
+  // An honest player at 70% accuracy on real drops: most income must come from knowing things.
+  function shareOf(states: Record<string, PegState>, board = pegs, shifts = 40) {
+    const rand = rng(11);
+    let skill = 0, chance = 0;
+    const attempts: Attempt[] = [];
+    for (let sh = 0; sh < shifts; sh++) {
+      let streak = 0;
+      for (let q = 0; q < 8; q++) {
+        const p = 0.4 + rand() * 0.6;
+        const right = rand() < p;
+        attempts.push({ id: "", questionId: "", conceptId: "", chosen: "A", confidence: bestBet(p), correct: right, ms: 0, at: "" });
+        const mult = streakMultiplier(streak + 1);
+        const o = betOutcome(bestBet(p), right, mult);
+        streak = right ? streak + 1 : 0;
+        skill += o.chips;
+        if (o.balls) {
+          const d = createDrop(board, states, { balls: o.balls, seed: sh * 100 + q + 1 });
+          const raw = d.resolve();
+          const total = Math.round(raw), s = Math.round(d.skill);
+          skill += s;
+          chance += total - s;
+        }
+      }
+      skill += calibrationBonus(calibrationGrade(calibrationGap(attempts)));
+    }
+    return skillShare(skill, chance);
+  }
+  it(`an honest player earns at least ${SKILL_TARGET * 100}% from knowing, on plain and fully loaded boards`, () => {
+    expect(shareOf(mixed)).toBeGreaterThanOrEqual(SKILL_TARGET);
+    expect(shareOf(solidHeavy)).toBeGreaterThanOrEqual(SKILL_TARGET);
+    expect(shareOf(mixed, placeSpecials(pegs, ["wheel", "quiz21", "quiz", "splitter", "blackhole", "bumper"]))).toBeGreaterThanOrEqual(SKILL_TARGET);
   });
 });

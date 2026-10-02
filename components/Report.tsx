@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useDerived, useGame } from "@/lib/store";
 import { calibration, calibrationByLevel, mastery, pegState, tonightsPlan, type PegState } from "@/lib/engine";
 import { CONF_LABEL } from "@/lib/copy";
+import { brier, calibrationGap, calibrationGrade, CAL_WINDOW } from "@/lib/economy";
 import { Counter, Window } from "./ui";
 
 const FLAG: Record<PegState, string> = { solid: "Solid", shaky: "Shaky", cold: "Not tried", bomb: "BOMB" };
@@ -13,6 +14,9 @@ export default function Report() {
   const { ready, days, states } = useDerived();
   const [copied, setCopied] = useState(false);
   const cal = calibration(g.attempts);
+  const recentGap = calibrationGap(g.attempts);
+  const grade = calibrationGrade(recentGap);
+  const brierAll = brier(g.attempts);
   const name = (id: string) => g.concepts.find((c) => c.id === id)?.name ?? id;
   const sureWrong = states.filter((s) => s.confidentWrong > 0).sort((a, b) => b.confidentWrong - a.confidentWrong);
   const plan = tonightsPlan(states, days);
@@ -40,6 +44,13 @@ export default function Report() {
           <Counter label="ESTIMATE %" value={ready} digits={3} big />
         </div>
         <p className="mono">CONFIDENCE GAP: {gapText.toUpperCase()}</p>
+        <p className="mono">
+          CALIBRATION GRADE {grade}/3
+          {recentGap !== null && ` (GAP ${recentGap.toFixed(1)} PTS OVER LAST ${Math.min(CAL_WINDOW, g.attempts.length)})`}
+          {brierAll !== null && ` · BRIER ${brierAll.toFixed(2)} (LOWER IS BETTER)`}
+        </p>
+        <p className="small">Grade 3: within 5 points. 2: within 10. 1: within 15. Guess counts as 35% sure, Pretty sure 67%, Certain 92%.</p>
+        <p className="mono">LEDGER DEBT {g.debt}</p>
         <p className="small">
           Based on {g.attempts.length} answer{g.attempts.length === 1 ? "" : "s"}
           {g.exam ? `, including Exam Day (${g.exam.correct}/${g.exam.total})` : ""}. An estimate to guide revision, not a grade prediction.

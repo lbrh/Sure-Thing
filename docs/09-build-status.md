@@ -2,7 +2,7 @@
 
 What the first commit (`7da60fc`, "init: initialize project with basic configuration and structure") actually ships, and where it differs from the plans in docs 01 to 08. When a plan doc and this doc disagree, this doc describes the code as it is.
 
-Status as of 2 October 2026. `npm test` passes: 4 files, 49 tests.
+Status as of 2 October 2026. `npm test` passes: 4 files, 56 tests.
 
 ## 1. Summary
 
@@ -27,7 +27,7 @@ The biggest departures from the plan:
 | Leitner mastery and bomb retests | Done | As specced in doc 03 section 5 |
 | Shop | Done, extended | Second Chance and Defuser always on sale, plus 3 rotating "crazy offers" from 9 items |
 | Readiness report | Done | Mastery bars, confidence gap, sure-and-wrong list, tonight's plan, calibration chart, Brier score, share text |
-| Safe play basics | Done | Chips floor at zero, daily Shift cap, Calm mode, odds tables |
+| Safe play basics | Done | Chips never go negative (penalties are Ledger debt), daily Shift cap, Calm mode, odds tables |
 | Offline fallback | Done | Seeded units never touch the network. Live generation falls back to Databases 101 |
 | Live unit generation | Done | `/api/unit` and `/api/questions` with an independent solve check |
 | Exam Day | Done | 10 questions, unlocks after 1 Shift, no chips at stake |
@@ -55,14 +55,24 @@ You can leave a Shift mid-way (to the Shop, Report or Hub) and resume exactly wh
 | Starting chips | 5 |
 | Shift length | 8 questions |
 | Exam Day length | 10 questions |
-| Bet table | Guess 1 ball / lose 0. Pretty sure 2 balls / lose 1. Certain 3 balls / lose 4 and plant a bomb |
+| Bet table | Right: Guess +2, Pretty sure +4, Certain +6 chips, plus 1 bonus ball whatever the bet. Wrong: Guess nothing, Pretty sure +2 Ledger debt, Certain +12 Ledger debt and a bomb |
+| Ledger debt | Separate account, no floor, never taken from chips. Shown as the DEBT hit counter. Only affects the Ledger Pot and the Exam Day summary. Defusing never refunds it |
 | Peg yields | Solid +2, Shaky +1, Cold 0, Bomb -2, neutral 0 |
 | Buckets | x0.5, x1, x2, x3, x2, x1, x0.5 (MEGA BUCKET makes the centre x10) |
-| Ball value | `(1 + sum of peg yields) * bucket * 0.36`, rounded, floored at 0 |
-| Streak multiplier | Consecutive correct answers multiply that answer's drop chips: x1, x1.5, x2, x2.5, then capped at x3. A wrong answer resets it. Exam Day leaves it alone. Second Chance keeps it safe |
+| Ball value | `(1 + sum of peg yields) * bucket * 0.28`, rounded, floored at 0 |
+| Streak multiplier | Counts correct answers only. The next answer plays at x1, x1.5, x2, x2.5, then capped at x3, applied to its gain and its debt alike, never to the bonus ball. A wrong answer resets it. Exam Day leaves it alone. Second Chance keeps it safe |
+| Calibration | Guess 0.35, Pretty sure 0.67, Certain 0.92. Gap over the last 20 answers, grade 0 to 3. Each Shift ends with +3 chips per grade point. The Readiness Report shows the grade and the Brier score |
+| Skill share | Shift summary meter: chips from correct answers, popup questions and calibration versus chips from buckets, the wheel and other specials. Target 80% or more |
 | Daily Shift cap | Default 6, adjustable 1 to 12 |
 
-The 0.36 scale was tuned with `tests/tuning.test.ts` so a mixed board pays 1.0 to 1.5 chips per ball, a bomb-heavy board pays less than half a solid-heavy one, and a cold board still pays something.
+The ball scale was tuned with `tests/tuning.test.ts` so a mixed board pays 1.0 to 1.5 chips per ball, a bomb-heavy board pays less than half a solid-heavy one, and a cold board still pays something. Measured now: cold 0.52, mixed 1.13, bomb-heavy 0.40, solid-heavy 1.82 chips per ball.
+
+**What changed in the October 2026 rework and why.**
+
+- **Balls per bet: 1, 2, 3 became 1 bonus ball for every right answer.** Different ball counts per bet shift the break-even points by however much a ball is worth on your board. A bonus that is the same for every bet leaves them exactly at 50% and 83%. The bet payout itself is now fixed chips.
+- **Scale 0.36 became 0.28, captured balls are scaled too, and Black Hole adds +1 peg value instead of +2.** At 0.36 the board paid 1.31 chips per ball on a mixed board and an honest player at 70% accuracy took only 75% of their income from knowing things. 0.28 keeps the mixed board at 1.13, inside the 1.0 to 1.5 band.
+- **The streak multiplier no longer multiplies the board.** It scales the bet payout and the debt only, so luck on the board is never multiplied. With all six shop pegs installed the share still clears 80%.
+- **A calibration bonus (3 chips per grade point) was added** so calibration pays directly, as the skill-share rule assumes.
 
 ### Shop items and prices (all flat today)
 
@@ -130,10 +140,10 @@ Data model additions: `Attempt.exam` marks Exam Day answers. The store adds `Ses
 
 | File | Covers |
 |---|---|
-| `tests/engine.test.ts` | Bet table, honest confidence is optimal, Leitner moves, interval cap, targeting, retest picks a new question, calibration, readiness, seeded bank shape, unit name routing |
-| `tests/golden.test.ts` | Setup to Shift to Shop to Exam Day to Report, daily cap, flagging, streak multiplier, resuming mid-Shift and mid-question |
+| `tests/engine.test.ts` | Bet table, break-evens at 50% and 83%, bonus ball and multiplier never move them, overclaiming earns less, calibration grade, honest confidence is optimal, Leitner moves, interval cap, targeting, retest picks a new question, calibration, readiness, seeded bank shape, unit name routing |
+| `tests/golden.test.ts` | Setup to Shift to Shop to Exam Day to Report, debt never touching chips, defusing never refunding debt, daily cap, flagging, streak multiplier, resuming mid-Shift and mid-question |
 | `tests/minigames.test.ts` | Prize Wheel segments, expected value and Calm mode payout, 21 Quiz values and bonus, Pop Quiz speed curve, proportional cheers |
-| `tests/tuning.test.ts` | Economy tuning, special pegs, MEGA BUCKET, click-to-drop, wall fairness, grazes |
+| `tests/tuning.test.ts` | Economy tuning, skill share of an honest player on plain and fully loaded boards, special pegs, MEGA BUCKET, click-to-drop, wall fairness, grazes |
 
 `npm run tune` runs only the tuning sim.
 

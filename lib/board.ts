@@ -11,7 +11,7 @@ export const MEGA_MULTIPLIERS = [0.5, 1, 2, 10, 2, 1, 0.5];
 export const YIELD: Record<PegState | "neutral", number> = { cold: 0, shaky: 1, solid: 2, bomb: -2, neutral: 0 };
 // Tuned with tests/tuning.test.ts: a ball is worth (BASE + sum of peg yields) * bucket * SCALE.
 export const BASE = 1;
-export const SCALE = 0.36;
+export const SCALE = 0.28;
 export const MAX_ACTIVE = 12;
 export const MAX_BALLS = 40; // splitter cap
 export const MAGNET_R = 30;
@@ -132,7 +132,7 @@ export const CHUTE_BOTTOM = 56;
 export const chuteX = (i: number) => (W / CHUTES) * (i + 0.5);
 
 /** Popup pegs pay the ball's full value (no SCALE), min 1, so a big multiplier feels big. */
-export const holdValue = (total: number) => Math.max(1, BASE + total);
+export const holdValue = (total: number) => Math.max(1, Math.round((BASE + total) * SCALE));
 
 /** The wheel segment a ball lands on: seeded, so Skip and the animation agree. */
 export const wheelResult = (h: Pick<Hold, "seed" | "segments">) => h.segments[wheelSlot(rng(h.seed)(), h.segments.length)];
@@ -289,14 +289,14 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
       const { x, y } = b.body.position;
       // Magnet Peg: solid pegs pull in any ball that passes close by (counts as a hit)
       if (opts.magnet) for (const i of solids) if (Math.hypot(pegs[i].x - x, pegs[i].y - y) < MAGNET_R) hitPeg(b, i);
-      // Black Hole: pulls nearby balls in, then warps them back to the top once, +2 for the trip
+      // Black Hole: pulls nearby balls in, then warps them back to the top once, +1 peg value for the trip
       for (const i of holes) {
         const d = Math.hypot(pegs[i].x - x, pegs[i].y - y);
         if (b.warped || d > 80) continue;
         if (d < PEG_R + BALL_R + 2) {
           b.warped = true;
-          b.total += 2;
-          say(i, "WARP +2!");
+          b.total += 1;
+          say(i, "WARP!");
           events.push({ type: "peg", state: "blackhole" });
           Matter.Body.setPosition(b.body, { x: 40 + rand() * (W - 80), y: 30 });
           Matter.Body.setVelocity(b.body, { x: 0, y: 0 });

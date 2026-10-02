@@ -1,28 +1,87 @@
 import { describe, expect, it } from "vitest";
 import {
-  betOutcome, updateState, newConceptState, pegState, priority, calibration, drawOffer,
+  rng, updateState, newConceptState, pegState, priority, calibration, drawOffer,
   pickQuestion, readiness, daysUntil, type Attempt, type ConceptState, type Confidence,
 } from "@/lib/engine";
 import bank from "@/data/databases-101.json";
 import { SEEDED, loadUnit } from "@/lib/loadUnit";
 import type { Question } from "@/lib/engine";
+import { bestBet, betOutcome, breakEven, calibrationGap, calibrationGrade, evNet } from "@/lib/economy";
 
 const now = new Date("2026-10-02T10:00:00");
 const fresh = (id = "c") => newConceptState(id, now);
 const play = (s: ConceptState, confidence: Confidence, correct: boolean) => updateState(s, { confidence, correct }, 9, now);
 
 describe("scoring", () => {
-  it("pays and penalises per the table", () => {
-    expect(betOutcome("guess", true)).toEqual({ balls: 1, chipPenalty: 0, plantBomb: false });
-    expect(betOutcome("pretty", false)).toEqual({ balls: 0, chipPenalty: 1, plantBomb: false });
-    expect(betOutcome("certain", false)).toEqual({ balls: 0, chipPenalty: 4, plantBomb: true });
+  it("pays chips and adds debt per the table", () => {
+    expect(betOutcome("guess", true)).toEqual({ chips: 2, debt: 0, balls: 1, plantBomb: false });
+    expect(betOutcome("pretty", true)).toEqual({ chips: 4, debt: 0, balls: 1, plantBomb: false });
+    expect(betOutcome("certain", true)).toEqual({ chips: 6, debt: 0, balls: 1, plantBomb: false });
+    expect(betOutcome("guess", false)).toEqual({ chips: 0, debt: 0, balls: 0, plantBomb: false });
+    expect(betOutcome("pretty", false)).toEqual({ chips: 0, debt: 2, balls: 0, plantBomb: false });
+    expect(betOutcome("certain", false)).toEqual({ chips: 0, debt: 12, balls: 0, plantBomb: true });
+  });
+  it("expected values are Guess 2p, Pretty sure 6p - 2, Certain 18p - 12", () => {
+    for (const p of [0, 0.3, 0.5, 0.8, 1]) {
+      expect(evNet("guess", p)).toBeCloseTo(2 * p);
+      expect(evNet("pretty", p)).toBeCloseTo(6 * p - 2);
+      expect(evNet("certain", p)).toBeCloseTo(18 * p - 12);
+    }
+  });
+  it("break-evens sit at 50% and about 83%", () => {
+    expect(breakEven("guess", "pretty")).toBeCloseTo(0.5);
+    expect(breakEven("pretty", "certain")).toBeCloseTo(5 / 6);
   });
   it("honest confidence is the best strategy", () => {
-    const ev = (c: Confidence, p: number) => { const w = betOutcome(c, true), l = betOutcome(c, false); return p * w.balls - (1 - p) * l.chipPenalty; };
-    const best = (p: number) => (["guess", "pretty", "certain"] as Confidence[]).sort((a, b) => ev(b, p) - ev(a, p))[0];
-    expect(best(0.3)).toBe("guess");
-    expect(best(0.65)).toBe("pretty");
-    expect(best(0.9)).toBe("certain");
+    expect(bestBet(0.3)).toBe("guess");
+    expect(bestBet(0.49)).toBe("guess");
+    expect(bestBet(0.51)).toBe("pretty");
+    expect(bestBet(0.8)).toBe("pretty");
+    expect(bestBet(0.85)).toBe("certain");
+  });
+  it("the bonus ball and the multiplier never move a break-even", () => {
+    // a ball worth v on every correct answer, and a multiplier m on gains and debts alike
+    for (const v of [0, 1, 1.25, 3])
+      for (const m of [1, 1.5, 3, 10]) {
+        const ev = (c: Confidence, p: number) => {
+          const w = betOutcome(c, true, m), l = betOutcome(c, false, m);
+          return p * (w.chips + w.balls * v * m) - (1 - p) * l.debt;
+        };
+        const best = (p: number) => (["guess", "pretty", "certain"] as Confidence[]).reduce((b, c) => (ev(c, p) > ev(b, p) + 1e-9 ? c : b), "guess" as Confidence);
+        expect(best(0.49)).toBe("guess");
+        expect(best(0.51)).toBe("pretty");
+        expect(best(0.82)).toBe("pretty");
+        expect(best(0.84)).toBe("certain");
+      }
+  });
+  it("an overclaiming bettor earns less than an honest one at the same accuracy", () => {
+    const rand = rng(7);
+    let honest = 0, over = 0, always = 0;
+    const up = (c: Confidence): Confidence => (c === "guess" ? "pretty" : "certain");
+    for (let i = 0; i < 20000; i++) {
+      const p = 0.4 + rand() * 0.6; // mean 70% accuracy
+      const right = rand() < p;
+      const net = (c: Confidence) => { const o = betOutcome(c, right); return o.chips - o.debt; };
+      honest += net(bestBet(p));
+      over += net(up(bestBet(p)));
+      always += net("certain");
+    }
+    expect(over).toBeLessThan(honest);
+    expect(always).toBeLessThan(honest);
+  });
+});
+
+describe("calibration grade", () => {
+  const at = (confidence: Confidence, correct: boolean): Attempt => ({ id: "", questionId: "", conceptId: "", chosen: "A", confidence, correct, ms: 0, at: "" });
+  it("gap is abs(mean stated probability - accuracy) over the last 20 answers", () => {
+    const old = Array.from({ length: 30 }, () => at("certain", false));
+    const recent = [...Array.from({ length: 13 }, () => at("pretty", true)), ...Array.from({ length: 7 }, () => at("pretty", false))];
+    expect(calibrationGap([...old, ...recent])).toBeCloseTo(2); // 67% stated, 65% right
+    expect(calibrationGrade(calibrationGap([...old, ...recent]))).toBe(3);
+  });
+  it("grades 3, 2, 1, 0 at 5, 10, 15 points", () => {
+    expect([0, 5, 5.1, 10, 15, 15.1].map(calibrationGrade)).toEqual([3, 3, 2, 2, 1, 0]);
+    expect(calibrationGrade(null)).toBe(0);
   });
 });
 
@@ -85,7 +144,7 @@ describe("calibration and readiness", () => {
   it("reports overconfidence as a positive gap", () => {
     const c = calibration([at("certain", false), at("certain", true)])!;
     expect(c.accuracy).toBe(0.5);
-    expect(c.gapPoints).toBe(40);
+    expect(c.gapPoints).toBe(42);
   });
   it("empty is null", () => expect(calibration([])).toBeNull());
   it("readiness counts bombs and untried as zero and blends the exam", () => {

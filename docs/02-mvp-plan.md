@@ -21,7 +21,7 @@ Success for the hackathon is a reliable 90 second demo and a clear answer to "wh
 - Shop with 3 upgrades: Second Chance, Defuser, Magnet Peg. (Built, plus a rotating "crazy shop" of 9 board pegs and modifiers. See doc 09, section 4.)
 - Shop prices that rise as you earn more chips, Cookie Clicker style (new requirement, not built yet, section 4.9).
 - Readiness report: per-concept mastery, confidence gap, overconfident topics, tonight's plan.
-- Safe play basics: no real money, chips floor at zero, daily Shift cap, Calm mode toggle.
+- Safe play basics: no real money, chips never go negative (penalties go to a separate Ledger debt), daily Shift cap, Calm mode toggle.
 - Offline fallback (everything works from the seeded bank with no network).
 
 ### Should have
@@ -54,21 +54,23 @@ Success for the hackathon is a reliable 90 second demo and a clear answer to "wh
 
 | Confidence | If correct | If wrong |
 |---|---|---|
-| Guess | 1 ball | lose 0 chips |
-| Pretty sure | 2 balls | lose 1 chip |
-| Certain | 3 balls | lose 4 chips and a Bomb peg is planted on that concept |
+| Guess | +2 chips and 1 bonus ball | nothing |
+| Pretty sure | +4 chips and 1 bonus ball | +2 Ledger debt |
+| Certain | +6 chips and 1 bonus ball | +12 Ledger debt and a Bomb peg is planted on that concept |
 
-Chips never go below zero. A wrong answer never locks content, never costs lives and never starts a timer.
+**Revised October 2026 (doc 11).** Chips never go negative and penalties never come out of chips. A wrong answer adds Ledger debt, a separate account with no floor that only affects the Ledger Pot payout and the Exam Day summary. The old table took chips away, but with a floor at zero a player with no chips lost nothing by claiming Certain. A wrong answer never locks content, never costs lives and never starts a timer.
 
-**Added in the build: streak multiplier.** Consecutive correct answers multiply that answer's drop chips: x1, x1.5, x2, x2.5, capped at x3. A wrong answer resets it. It multiplies chips only (never mastery), and a Certain bet is still only worth it above about 75% sure, so honest confidence stays the best strategy. Players start with 5 chips.
+**Streak multiplier.** Consecutive correct answers set the multiplier the next answer plays at: x1, x1.5, x2, x2.5, capped at x3. It scales the gain if you are right and the debt if you are wrong by the same factor, and never the bonus ball. A wrong answer resets it. Players start with 5 chips.
 
-**Why these numbers.** Assume an average ball is worth about 1 chip (tuned in section 4.4). Expected value per question when your chance of being right is p:
+**Why these numbers.** Expected Ledger net (chips minus debt) per question when your chance of being right is p:
 
-- Guess: p
-- Pretty sure: 2p - (1 - p) = 3p - 1
-- Certain: 3p - 4(1 - p) = 7p - 4
+- Guess: 2p
+- Pretty sure: 4p - 2(1 - p) = 6p - 2
+- Certain: 6p - 12(1 - p) = 18p - 12
 
-So Guess is the best bet when you are under about 50% likely to be right, Pretty sure between about 50% and 75%, and Certain above about 75%. Honest confidence is the winning strategy, which is the whole point.
+So Guess is best under 50% sure, Pretty sure from 50% to about 83%, and Certain above about 83%. The bonus ball is the same for every bet, and the multiplier scales gains and debts alike, so neither moves a break-even. Honest confidence is the winning strategy, which is the whole point. `tests/engine.test.ts` proves it, including that an overclaiming bettor earns less than an honest one at the same accuracy.
+
+**Calibration.** Guess counts as 35% sure, Pretty sure 67%, Certain 92%. The calibration gap is abs(mean stated probability minus accuracy) times 100 over the last 20 answers. Grade 3 for a gap of 5 or less, 2 for 10 or less, 1 for 15 or less, otherwise 0. Each Shift ends with a calibration bonus of 3 chips per grade point.
 
 ### 4.2 Peg states and yields
 
@@ -85,7 +87,7 @@ Each concept has 2 scoring pegs on the board. The rest are neutral bumpers.
 
 x0.5, x1, x2, x3, x2, x1, x0.5 (centre is highest). Upgrades can change these.
 
-As built, a ball is worth `(1 + sum of peg yields) * bucket * 0.36`, rounded and floored at 0. The player aims each ball by picking one of 7 chutes above the buckets.
+As built, a ball is worth `(1 + sum of peg yields) * bucket * 0.28`, rounded and floored at 0 (the scale was 0.36 before the October 2026 rework, see doc 09). The player aims each ball by picking one of 7 chutes above the buckets.
 
 ### 4.4 Tuning step (30 minutes)
 

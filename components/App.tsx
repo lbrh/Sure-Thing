@@ -10,7 +10,8 @@ import Chaos, { Banners, EmojiSwarm, confetti } from "./Chaos";
 import Seal, { sealDo } from "./Seal";
 import { inProgress, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
 import { layoutPegs, placeSpecials, type Hold, type HoldResult, type PegSpec } from "@/lib/board";
-import { BALLS, PENALTY, badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
+import { badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
+import { breakEven, DEBT, GAIN, skillShare, SKILL_TARGET } from "@/lib/economy";
 import { CONF_LABEL, LINES, terms } from "@/lib/copy";
 import { sfx } from "@/lib/sound";
 import { loadUnit, SEEDED } from "@/lib/loadUnit";
@@ -62,8 +63,9 @@ export default function App() {
           <Counter label="DAYS" value={days} digits={2} />
           <Counter label={t.Chips.toUpperCase()} value={g.chips} />
           <Counter label="STREAK" value={g.streak} digits={2} />
+          <Counter label="DEBT" value={g.debt} digits={3} />
           <span className="hide-sm">
-            <Counter label="DEBT" value={`${debt}%`} />
+            <Counter label="TO GO" value={`${debt}%`} />
           </span>
           <button className="btn small" onClick={() => g.go("settings")}>
             Settings
@@ -193,14 +195,21 @@ export function OddsTable() {
         {CONFS.map((c) => (
           <tr key={c}>
             <td>{CONF_LABEL[c]}</td>
-            <td className="mono">{BALLS[c]} ball{BALLS[c] > 1 ? "s" : ""}</td>
+            <td className="mono">+{GAIN[c]} {t.chips} + 1 ball</td>
             <td className="mono">
-              lose {PENALTY[c]} {PENALTY[c] === 1 ? t.chip : t.chips}
+              {DEBT[c] ? `+${DEBT[c]} debt` : "nothing"}
               {c === "certain" ? " + bomb" : ""}
             </td>
           </tr>
         ))}
       </tbody>
+      <tfoot>
+        <tr>
+          <td colSpan={3} className="small">
+            Debt never comes out of your {t.chips}. It is settled against the Ledger Pot on Exam Day. Your streak multiplies the gain and the debt alike, never the ball.
+          </td>
+        </tr>
+      </tfoot>
     </table>
   );
 }
@@ -373,7 +382,7 @@ function Hub({ reduced }: { reduced: boolean }) {
             <Counter label="DAYS TO EXAM" value={days} digits={2} />
           </div>
           <div className="row between small">
-            <strong>DEBT</strong>
+            <strong>EXAM LEDGER</strong>
             <span className="mono">{debt}% TO GO</span>
           </div>
           <div className="progress" role="progressbar" aria-valuenow={100 - debt} aria-valuemin={0} aria-valuemax={100} aria-label="Debt paid off">
@@ -382,6 +391,7 @@ function Hub({ reduced }: { reduced: boolean }) {
           <ul className="facts">
             <li>Weakest: {weakest.length ? weakest.join(", ") : "nothing tried yet"}</li>
             <li>Bombs: {bombs.length ? bombs.map(name).join(", ") : "none"}</li>
+            <li>Ledger debt: {g.debt} (never taken from your {t.chips})</li>
             {mods.length > 0 && <li>Ready for next Shift: {mods.join(", ")}</li>}
           </ul>
         </Window>
@@ -523,13 +533,13 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
             {CONFS.map((c, i) => (
               <button key={c} role="radio" aria-checked={conf === c} className={`btn conf ${c}`} onClick={() => setConf(c)}>
                 <strong>{CONF_LABEL[c]}</strong>
-                <span className="mono">{exam ? `~${[40, 70, 90][i]}% sure` : `${BALLS[c]} ball${BALLS[c] > 1 ? "s" : ""} · lose ${PENALTY[c]}`}</span>
+                <span className="mono">{exam ? `~${[35, 67, 92][i]}% sure` : `+${GAIN[c]}${DEBT[c] ? ` · debt ${DEBT[c]}` : " · no debt"}`}</span>
               </button>
             ))}
           </div>
           {exam && <p className="small">Exam Day: no {t.chips} at stake. Your {t.bet}s feed the readiness report.</p>}
           {s.retrying && <p className="small">Second Chance: one option is out. Try again.</p>}
-          {!exam && g.streak >= 1 && <p className="small mono">STREAK {g.streak}: GET THIS RIGHT FOR CHIPS x{streakMultiplier(g.streak + 1)}</p>}
+          {!exam && g.streak >= 1 && <p className="small mono">STREAK {g.streak}: THIS ANSWER PLAYS AT x{streakMultiplier(g.streak + 1)} (GAIN AND DEBT ALIKE)</p>}
           <button className="btn success big" disabled={!chosen || !conf} onClick={() => chosen && conf && g.answer(chosen, conf)}>
             Lock it in
           </button>
@@ -551,7 +561,7 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
   const g = useGame();
   const r = g.reveal;
   const s = g.session;
-  const [won, setWon] = useState<number | null>(null);
+  const [won, setWon] = useState<{ chips: number; skill: number } | null>(null);
   const exam = s?.kind === "exam";
 
   useEffect(() => {
@@ -575,7 +585,7 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
   const droppable = !r.secondChance && !exam; // Shift and Defuser answers drop right here
   const kind = r.bombPlanted ? "bomb" : r.correct && !r.secondChance ? "right" : "wrong";
   const title = r.bombPlanted ? "BOMB_PLANTED.EXE" : r.correct ? "CORRECT.WAV" : "NOT_THIS_TIME.TXT";
-  const mult = s.streakMult ?? 1;
+  const mult = s.mult ?? s.streakMult ?? 1;
   const last = s.answered >= s.total;
 
   return (
@@ -617,14 +627,15 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
           )}
           {r.secondChance && <p>No {t.chips} lost, no bomb, streak safe. Have another go.</p>}
           <div className="row">
-            {!exam && r.correct && !r.secondChance && <Counter label="BALLS EARNED" value={r.balls} digits={2} />}
+            {!exam && r.correct && !r.secondChance && <Counter label={`+${t.Chips.toUpperCase()}`} value={r.chips} digits={2} />}
+            {!exam && r.correct && !r.secondChance && <Counter label="BONUS BALL" value={r.balls} digits={1} />}
             {!exam && r.correct && !r.secondChance && r.streak >= 2 && (
               <span className="counter streak pulse-glow" aria-label={`Streak ${r.streak}, chips times ${mult}`}>
                 <span className="lbl">STREAK {r.streak}</span>x{mult}
               </span>
             )}
           </div>
-          {!exam && r.chipPenalty > 0 && <p className="mono">LOSE {r.chipPenalty} {(r.chipPenalty === 1 ? t.chip : t.chips).toUpperCase()}</p>}
+          {!exam && r.debt > 0 && <p className="mono">+{r.debt} LEDGER DEBT{r.mult > 1 ? ` (x${r.mult})` : ""}. YOUR {t.Chips.toUpperCase()} ARE UNTOUCHED</p>}
           {!exam && !r.correct && !r.secondChance && r.lostStreak >= 2 && <p className="mono">STREAK OF {r.lostStreak} LOST</p>}
 
           <Collector line={r.bombPlanted ? LINES.bombPlanted(concept.name) : r.line} />
@@ -651,18 +662,18 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
             </button>
           ) : won === null ? (
             <p className="notice">
-              → Drop your {s.pendingBalls} ball{s.pendingBalls === 1 ? "" : "s"} on the board: click a chute or press 1-7.
-              {mult > 1 ? ` Streak bonus: chips x${mult}!` : ""}
+              → Drop your bonus ball{s.pendingBalls === 1 ? "" : "s"} on the board: click a chute or press 1-7.
+              {mult > 1 ? ` Streak x${mult} is already in your answer payout. The ball is a bonus on top.` : ""}
             </p>
           ) : (
             <div className="row between dropdone">
               {s.pendingBalls > 0 && (
-                <span className="counter big" aria-label={`Plus ${Math.round(won * mult)} ${t.chips}`}>
+                <span className="counter big" aria-label={`Plus ${s.pendingChips + won.chips} ${t.chips}`}>
                   <span className="lbl">+{t.Chips.toUpperCase()}</span>
-                  {mult > 1 ? `${won}×${mult}=${Math.round(won * mult)}` : won}
+                  {s.pendingChips} + {won.chips} = {s.pendingChips + won.chips}
                 </span>
               )}
-              <button className={`btn big ${r.bombPlanted ? "danger" : "success"}`} onClick={() => g.finishDrop(won)} autoFocus>
+              <button className={`btn big ${r.bombPlanted ? "danger" : "success"}`} onClick={() => g.finishDrop(won.chips, won.skill)} autoFocus>
                 {last ? "Finish" : "Next"}
               </button>
             </div>
@@ -674,7 +685,7 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
   );
 }
 
-function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (chips: number) => void }) {
+function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips: number; skill: number }) => void }) {
   const g = useGame();
   const s = g.session!;
   const r = g.reveal;
@@ -726,13 +737,13 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (chips: numb
           reducedMotion={reduced}
           onHold={(h, release) => setHold({ h, release })}
           onCheer={chaos ? onCheer : undefined}
-          onDone={(c) => {
+          onDone={(chips, skill) => {
             setHold(null);
-            onDone(c);
+            onDone({ chips, skill });
           }}
           label={`Ball drop with ${s.pendingBalls} balls`}
         />
-        <p className="small">Solid +2, shaky +1, bomb −2. Centre buckets multiply more. Skip drops the rest down the middle.</p>
+        <p className="small">Bonus ball: solid +2, shaky +1, bomb −2. Centre buckets multiply more. Skip drops the rest down the middle.</p>
       </Window>
       {hold && (
         <HoldModal
@@ -771,13 +782,15 @@ function Summary() {
         <table>
           <tbody>
             <tr><td>Right</td><td className="mono">{s.correct} of {s.answered}</td></tr>
-            <tr><td>From the board</td><td className="mono">+{s.chipsEarned} {t.chips}</td></tr>
-            {s.chipsLost > 0 && <tr><td>From {t.bet}s</td><td className="mono">-{s.chipsLost} {t.chips}</td></tr>}
+            <tr><td>Earned</td><td className="mono">+{s.chipsEarned} {t.chips}</td></tr>
+            {(s.calBonus ?? 0) > 0 && <tr><td>Calibration bonus</td><td className="mono">+{s.calBonus} (3 per grade point)</td></tr>}
+            {(s.debtAdded ?? 0) > 0 && <tr><td>Ledger debt added</td><td className="mono">+{s.debtAdded} (total {g.debt})</td></tr>}
             <tr><td>Readiness (estimate)</td><td className="mono">{s.readinessBefore}% → {ready}%</td></tr>
             {s.bombsPlanted.length > 0 && <tr><td>Bombs planted</td><td>{s.bombsPlanted.map(name).join(", ")}</td></tr>}
             {s.bombsDefused.length > 0 && <tr><td>Bombs defused</td><td>{s.bombsDefused.map(name).join(", ")}</td></tr>}
           </tbody>
         </table>
+        <SkillMeter skill={s.skillChips ?? 0} chance={s.chanceChips ?? 0} />
         <hr />
         <div className="row">
           <button className="btn primary" onClick={() => g.go("shop")} autoFocus>Shop</button>
@@ -786,6 +799,24 @@ function Summary() {
         </div>
       </Window>
     </section>
+  );
+}
+
+function SkillMeter({ skill, chance }: { skill: number; chance: number }) {
+  const share = Math.round(skillShare(skill, chance) * 100);
+  return (
+    <div className="stack">
+      <div className="row between small">
+        <strong>SKILL SHARE</strong>
+        <span className="mono">{share}% FROM KNOWING · {100 - share}% FROM CHANCE</span>
+      </div>
+      <div className="progress" role="progressbar" aria-valuenow={share} aria-valuemin={0} aria-valuemax={100} aria-label="Share of income from correct answers">
+        <div style={{ width: `${share}%` }} />
+      </div>
+      <p className="small">
+        {skill} from correct answers and calibration, {chance} from buckets, the wheel and other specials. We aim for at least {SKILL_TARGET * 100}% from knowing.
+      </p>
+    </div>
   );
 }
 
@@ -810,7 +841,7 @@ function SettingsScreen() {
       <Window title="ODDS.TXT">
         <OddsTable />
         <p className="small">
-          Guess is the best {terms(s.calm).bet} below about 50% sure, Pretty sure from 50% to 75%, Certain above 75%. Honest confidence wins. Board: solid +2, shaky +1, not tried 0, bomb −2. Buckets x0.5 to x3. Shop pegs show their odds before you buy. Nothing random is sold for money.
+          Guess is the best {terms(s.calm).bet} below {Math.round(breakEven("guess", "pretty") * 100)}% sure, Pretty sure from there to about {Math.round(breakEven("pretty", "certain") * 100)}%, Certain above that. Every right answer also drops one bonus ball, whatever you bet, so the break-evens stay put. Honest confidence wins. Board: solid +2, shaky +1, not tried 0, bomb −2. Buckets x0.5 to x3. Shop pegs show their odds before you buy. Nothing random is sold for money.
         </p>
       </Window>
       <div className="row">
