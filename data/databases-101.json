@@ -1,0 +1,606 @@
+{
+  "unit": { "id": "databases-101", "name": "Databases 101" },
+  "concepts": [
+    { "id": "nulls", "unitId": "databases-101", "name": "NULL handling", "summary": "NULL means unknown, so comparisons with it are never simply true or false." },
+    { "id": "joins", "unitId": "databases-101", "name": "INNER vs LEFT JOIN", "summary": "Which rows survive a join, and where the NULLs come from." },
+    { "id": "having", "unitId": "databases-101", "name": "WHERE vs HAVING", "summary": "WHERE filters rows before grouping, HAVING filters groups after." },
+    { "id": "pk", "unitId": "databases-101", "name": "Primary keys", "summary": "One chosen key that uniquely identifies every row and is never NULL." },
+    { "id": "fk", "unitId": "databases-101", "name": "Foreign keys", "summary": "References between tables and the referential integrity they enforce." },
+    { "id": "norm", "unitId": "databases-101", "name": "Normalisation (1NF to 3NF)", "summary": "Store each fact once by removing repeating groups, partial and transitive dependencies." },
+    { "id": "groupby", "unitId": "databases-101", "name": "GROUP BY and aggregates", "summary": "Collapsing rows into groups and summarising each group." },
+    { "id": "indexes", "unitId": "databases-101", "name": "Indexes", "summary": "Faster lookups in exchange for slower writes and extra storage." },
+    { "id": "acid", "unitId": "databases-101", "name": "Transactions and ACID", "summary": "All-or-nothing units of work that survive crashes." },
+    { "id": "isolation", "unitId": "databases-101", "name": "Isolation levels", "summary": "How much concurrent transactions can see of each other." },
+    { "id": "er", "unitId": "databases-101", "name": "ER diagrams and cardinality", "summary": "One-to-one, one-to-many and many-to-many, and how each becomes tables." },
+    { "id": "views", "unitId": "databases-101", "name": "Views", "summary": "Saved queries that behave like tables." }
+  ],
+  "questions": [
+    {
+      "id": "nulls-1", "conceptId": "nulls", "difficulty": 1, "verified": true,
+      "stem": "SELECT COUNT(*) FROM orders WHERE customer_id = NULL;\nWhat does this return?",
+      "options": [
+        { "id": "A", "text": "The number of orders with no customer", "misconception": "It feels like NULL is just a value you can compare with =." },
+        { "id": "B", "text": "0" },
+        { "id": "C", "text": "An error", "misconception": "It looks wrong, so it feels like it shouldn't run. It is valid SQL, it just never matches." },
+        { "id": "D", "text": "The total number of orders", "misconception": "It assumes a condition that can't be evaluated gets ignored." }
+      ],
+      "correct": "B",
+      "explanation": "NULL means unknown, so customer_id = NULL is never true and no rows pass the WHERE. COUNT(*) of zero rows is 0. To find missing customers use WHERE customer_id IS NULL."
+    },
+    {
+      "id": "nulls-2", "conceptId": "nulls", "difficulty": 2, "verified": true,
+      "stem": "A column val holds three rows: 10, 20 and NULL.\nWhat does SELECT AVG(val) return?",
+      "options": [
+        { "id": "A", "text": "10", "misconception": "It treats NULL as 0, giving 30 / 3." },
+        { "id": "B", "text": "15" },
+        { "id": "C", "text": "NULL", "misconception": "It assumes one NULL poisons the whole aggregate, like it does in arithmetic." },
+        { "id": "D", "text": "An error", "misconception": "It assumes aggregates refuse to run when NULLs are present." }
+      ],
+      "correct": "B",
+      "explanation": "Aggregate functions like AVG skip NULLs, so this is (10 + 20) / 2 = 15. Treating NULL as 0 is the tempting mistake, but NULL is unknown, not zero."
+    },
+    {
+      "id": "nulls-3", "conceptId": "nulls", "difficulty": 2, "verified": true,
+      "stem": "In a WHERE clause, what does the condition NULL = NULL evaluate to?",
+      "options": [
+        { "id": "A", "text": "TRUE", "misconception": "Two identical-looking things feel equal." },
+        { "id": "B", "text": "FALSE", "misconception": "It assumes SQL only has two truth values." },
+        { "id": "C", "text": "UNKNOWN, so the row is not returned" },
+        { "id": "D", "text": "An error", "misconception": "It assumes comparing NULLs is illegal rather than just unknown." }
+      ],
+      "correct": "C",
+      "explanation": "SQL uses three-valued logic. Comparing anything with NULL using = gives UNKNOWN, and WHERE only keeps rows where the condition is TRUE. It is not FALSE either, which matters once you add NOT."
+    },
+    {
+      "id": "nulls-4", "conceptId": "nulls", "difficulty": 3, "verified": true,
+      "stem": "Table t has a column x with rows 1, 2 and NULL.\nWhat does SELECT COUNT(x), COUNT(*) FROM t return?",
+      "options": [
+        { "id": "A", "text": "3, 3", "misconception": "It assumes COUNT(column) counts every row like COUNT(*)." },
+        { "id": "B", "text": "2, 2", "misconception": "It assumes COUNT(*) also skips NULLs." },
+        { "id": "C", "text": "3, 2", "misconception": "It knows one of them skips NULLs but mixes up which." },
+        { "id": "D", "text": "2, 3" }
+      ],
+      "correct": "D",
+      "explanation": "COUNT(x) counts non-NULL values of x, which is 2. COUNT(*) counts rows, which is 3. The difference between the two is a quick way to count NULLs."
+    },
+
+    {
+      "id": "joins-1", "conceptId": "joins", "difficulty": 1, "verified": true,
+      "stem": "customers has 5 rows. Exactly 3 of them have one order each in orders.\nHow many rows does this return?\nSELECT * FROM customers c LEFT JOIN orders o ON o.customer_id = c.id;",
+      "options": [
+        { "id": "A", "text": "3", "misconception": "It treats LEFT JOIN like INNER JOIN and drops unmatched customers." },
+        { "id": "B", "text": "5" },
+        { "id": "C", "text": "8", "misconception": "It assumes a join stacks the two tables' rows together." },
+        { "id": "D", "text": "15", "misconception": "It assumes a join pairs every row with every row (a cross join)." }
+      ],
+      "correct": "B",
+      "explanation": "A LEFT JOIN keeps every row from the left table. The 3 customers with orders match once each, and the 2 without orders appear once with NULLs in the order columns, giving 5."
+    },
+    {
+      "id": "joins-2", "conceptId": "joins", "difficulty": 2, "verified": true,
+      "stem": "Which query lists customers who have never placed an order?",
+      "options": [
+        { "id": "A", "text": "customers c INNER JOIN orders o ON o.customer_id = c.id WHERE o.id IS NULL", "misconception": "It forgets an INNER JOIN only keeps matched rows, so o.id is never NULL here." },
+        { "id": "B", "text": "customers c LEFT JOIN orders o ON o.customer_id = c.id WHERE o.id = NULL", "misconception": "Right join, but = NULL is never true, so it returns nothing." },
+        { "id": "C", "text": "customers c LEFT JOIN orders o ON o.customer_id = c.id WHERE o.id IS NULL" },
+        { "id": "D", "text": "customers c INNER JOIN orders o ON o.customer_id <> c.id", "misconception": "It reads <> as 'not matched', but it pairs each customer with everyone else's orders." }
+      ],
+      "correct": "C",
+      "explanation": "The LEFT JOIN keeps customers with no orders and fills the order columns with NULL, then IS NULL picks out exactly those rows. This is the classic anti-join pattern."
+    },
+    {
+      "id": "joins-3", "conceptId": "joins", "difficulty": 3, "verified": true,
+      "stem": "SELECT c.name, o.total\nFROM customers c LEFT JOIN orders o ON o.customer_id = c.id\nWHERE o.total > 100;\nWhat happens to customers with no orders?",
+      "options": [
+        { "id": "A", "text": "They appear with a NULL total", "misconception": "It assumes LEFT JOIN protects left rows from the WHERE clause too." },
+        { "id": "B", "text": "They appear with a total of 0", "misconception": "It treats NULL as 0." },
+        { "id": "C", "text": "The query errors", "misconception": "It assumes you can't filter on the right table after a LEFT JOIN." },
+        { "id": "D", "text": "They are filtered out, because NULL > 100 is not true" }
+      ],
+      "correct": "D",
+      "explanation": "The LEFT JOIN keeps them with a NULL total, but then WHERE runs and NULL > 100 is UNKNOWN, so those rows are dropped. The query quietly behaves like an INNER JOIN. Put the condition in the ON clause to keep them."
+    },
+    {
+      "id": "joins-4", "conceptId": "joins", "difficulty": 1, "verified": true,
+      "stem": "customers has 5 rows. orders has 7 rows, each pointing to a valid customer (some customers have several orders).\nHow many rows does customers INNER JOIN orders ON orders.customer_id = customers.id return?",
+      "options": [
+        { "id": "A", "text": "7" },
+        { "id": "B", "text": "5", "misconception": "It assumes a join returns one row per customer." },
+        { "id": "C", "text": "12", "misconception": "It assumes a join adds the row counts together." },
+        { "id": "D", "text": "35", "misconception": "It confuses an INNER JOIN with a cross join." }
+      ],
+      "correct": "A",
+      "explanation": "Each order matches exactly one customer, so you get one row per order: 7. A customer with three orders appears three times."
+    },
+
+    {
+      "id": "having-1", "conceptId": "having", "difficulty": 1, "verified": true,
+      "stem": "Which clause filters groups after aggregation?",
+      "options": [
+        { "id": "A", "text": "WHERE", "misconception": "It assumes WHERE can filter on aggregate results." },
+        { "id": "B", "text": "GROUP BY", "misconception": "It assumes the grouping clause also does the filtering." },
+        { "id": "C", "text": "DISTINCT", "misconception": "It confuses removing duplicates with filtering groups." },
+        { "id": "D", "text": "HAVING" }
+      ],
+      "correct": "D",
+      "explanation": "HAVING runs after GROUP BY, so it can test aggregates like COUNT(*) > 5. WHERE runs before grouping, on individual rows, so aggregates don't exist yet."
+    },
+    {
+      "id": "having-2", "conceptId": "having", "difficulty": 2, "verified": true,
+      "stem": "SELECT dept, COUNT(*) FROM staff WHERE COUNT(*) > 5 GROUP BY dept;\nWhat happens?",
+      "options": [
+        { "id": "A", "text": "An error: aggregate functions aren't allowed in WHERE" },
+        { "id": "B", "text": "It returns departments with more than 5 staff", "misconception": "It assumes WHERE can see aggregate results." },
+        { "id": "C", "text": "It returns every department and ignores the condition", "misconception": "It assumes an invalid condition is skipped silently." },
+        { "id": "D", "text": "It returns nothing, because COUNT(*) is 1 for each row", "misconception": "It imagines COUNT evaluated per row instead of rejected." }
+      ],
+      "correct": "A",
+      "explanation": "WHERE filters individual rows before any grouping happens, so there is no group to count yet and the database rejects it. Move the condition to HAVING COUNT(*) > 5."
+    },
+    {
+      "id": "having-3", "conceptId": "having", "difficulty": 2, "verified": true,
+      "stem": "You want total sales per region, counting only 2025 sales, and only regions whose total is over 10,000.\nWhere do the two filters go?",
+      "options": [
+        { "id": "A", "text": "Both in WHERE", "misconception": "It assumes WHERE can test the aggregated total." },
+        { "id": "B", "text": "Both in HAVING", "misconception": "HAVING feels like a stronger WHERE, but year isn't grouped or aggregated." },
+        { "id": "C", "text": "Year in WHERE, total in HAVING" },
+        { "id": "D", "text": "Year in HAVING, total in WHERE", "misconception": "It knows there are two clauses but swaps their jobs." }
+      ],
+      "correct": "C",
+      "explanation": "The year is a property of each row, so filter it in WHERE before grouping. The total only exists after grouping, so it goes in HAVING."
+    },
+    {
+      "id": "having-4", "conceptId": "having", "difficulty": 3, "verified": true,
+      "stem": "What is the logical order a database evaluates these clauses in?",
+      "options": [
+        { "id": "A", "text": "SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY", "misconception": "It assumes the written order is the evaluation order." },
+        { "id": "B", "text": "FROM, WHERE, GROUP BY, HAVING, SELECT, ORDER BY" },
+        { "id": "C", "text": "FROM, GROUP BY, WHERE, HAVING, SELECT, ORDER BY", "misconception": "It groups before filtering rows." },
+        { "id": "D", "text": "FROM, WHERE, HAVING, GROUP BY, SELECT, ORDER BY", "misconception": "It filters groups before the groups exist." }
+      ],
+      "correct": "B",
+      "explanation": "Rows come from FROM, get filtered by WHERE, are grouped, then groups are filtered by HAVING, then SELECT computes the output and ORDER BY sorts it. That's why WHERE can't use aggregates or SELECT aliases."
+    },
+
+    {
+      "id": "pk-1", "conceptId": "pk", "difficulty": 1, "verified": true,
+      "stem": "Which statement about a primary key is true?",
+      "options": [
+        { "id": "A", "text": "It must be a single auto-incrementing integer", "misconception": "Auto-increment ids are common, so they feel required. Keys can be text or several columns." },
+        { "id": "B", "text": "It may contain NULL, as long as only one row does", "misconception": "It mixes up primary keys with UNIQUE constraints in some databases." },
+        { "id": "C", "text": "Its values must be unique and never NULL" },
+        { "id": "D", "text": "A table can have several primary keys", "misconception": "It confuses candidate keys or unique constraints with the primary key." }
+      ],
+      "correct": "C",
+      "explanation": "A primary key uniquely identifies each row, so it must be unique and NOT NULL. There is only one per table, though it can span several columns."
+    },
+    {
+      "id": "pk-2", "conceptId": "pk", "difficulty": 2, "verified": true,
+      "stem": "Enrolment(student_id, unit_id, grade). A student takes many units, a unit has many students, and a student takes each unit once.\nWhat is the best primary key?",
+      "options": [
+        { "id": "A", "text": "student_id", "misconception": "It assumes one row per student." },
+        { "id": "B", "text": "(student_id, unit_id, grade)", "misconception": "More columns feels safer, but it would allow the same enrolment twice with different grades." },
+        { "id": "C", "text": "unit_id", "misconception": "It assumes one row per unit." },
+        { "id": "D", "text": "(student_id, unit_id)" }
+      ],
+      "correct": "D",
+      "explanation": "The pair (student_id, unit_id) is unique and minimal: each student takes each unit once. Adding grade makes it non-minimal and lets duplicate enrolments slip in."
+    },
+    {
+      "id": "pk-3", "conceptId": "pk", "difficulty": 2, "verified": true,
+      "stem": "users(id, email, phone): id is the primary key, email is UNIQUE and NOT NULL.\nWhich statement is right?",
+      "options": [
+        { "id": "A", "text": "email is also a candidate key; id was just the one chosen as primary key" },
+        { "id": "B", "text": "email can't be a key because it is text", "misconception": "It assumes keys must be numeric." },
+        { "id": "C", "text": "Only id can ever be a key in this table", "misconception": "It assumes a table has exactly one possible key." },
+        { "id": "D", "text": "email is a foreign key", "misconception": "It confuses 'unique column' with 'reference to another table'." }
+      ],
+      "correct": "A",
+      "explanation": "Any minimal set of columns that is unique and not NULL is a candidate key. The primary key is one candidate key you pick. The others are often enforced with UNIQUE constraints."
+    },
+    {
+      "id": "pk-4", "conceptId": "pk", "difficulty": 3, "verified": true,
+      "stem": "Why do many designers use a surrogate key (like an auto id) instead of a natural key like email?",
+      "options": [
+        { "id": "A", "text": "SQL requires a surrogate key on every table", "misconception": "It mistakes a common convention for a rule." },
+        { "id": "B", "text": "Natural values like email can change, and changing a primary key ripples into every foreign key that references it" },
+        { "id": "C", "text": "Natural keys can't be indexed", "misconception": "It assumes only integers can be indexed." },
+        { "id": "D", "text": "A surrogate key stops duplicate emails", "misconception": "It forgets the surrogate key says nothing about other columns. You still need UNIQUE on email." }
+      ],
+      "correct": "B",
+      "explanation": "A surrogate key never needs to change, so references to it stay stable. You still keep a UNIQUE constraint on email to stop duplicates."
+    },
+
+    {
+      "id": "fk-1", "conceptId": "fk", "difficulty": 1, "verified": true,
+      "stem": "orders.customer_id REFERENCES customers(id), with no ON DELETE option.\nYou try to delete a customer who still has orders. What happens?",
+      "options": [
+        { "id": "A", "text": "The customer and their orders are deleted", "misconception": "It assumes CASCADE is the default." },
+        { "id": "B", "text": "The customer is deleted and their orders' customer_id becomes NULL", "misconception": "It assumes SET NULL is the default." },
+        { "id": "C", "text": "The delete is rejected" },
+        { "id": "D", "text": "The customer is deleted and the orders point at a missing id", "misconception": "It assumes foreign keys are only checked on insert." }
+      ],
+      "correct": "C",
+      "explanation": "The default action (NO ACTION or RESTRICT) refuses any delete that would leave orders pointing at a customer that doesn't exist. CASCADE and SET NULL only happen if you ask for them."
+    },
+    {
+      "id": "fk-2", "conceptId": "fk", "difficulty": 2, "verified": true,
+      "stem": "Can a foreign key column contain NULL?",
+      "options": [
+        { "id": "A", "text": "Yes, unless it is declared NOT NULL. A NULL means 'no reference'" },
+        { "id": "B", "text": "No, foreign keys are always NOT NULL", "misconception": "It mixes up foreign keys with primary keys." },
+        { "id": "C", "text": "Only if the referenced primary key also contains NULL", "misconception": "It assumes NULL has to match a NULL on the other side." },
+        { "id": "D", "text": "Only when ON DELETE SET NULL is declared", "misconception": "It assumes NULLs only appear through that action." }
+      ],
+      "correct": "A",
+      "explanation": "A nullable foreign key models an optional relationship, like an order not yet assigned to a courier. The constraint only checks non-NULL values. Add NOT NULL if the reference is mandatory."
+    },
+    {
+      "id": "fk-3", "conceptId": "fk", "difficulty": 2, "verified": true,
+      "stem": "What must a foreign key reference?",
+      "options": [
+        { "id": "A", "text": "Any column in the other table", "misconception": "It forgets the target must identify exactly one row." },
+        { "id": "B", "text": "Any indexed column", "misconception": "It confuses 'fast to look up' with 'unique'." },
+        { "id": "C", "text": "A column with the same name", "misconception": "Matching names is a convention, not a requirement." },
+        { "id": "D", "text": "A primary key or a column with a UNIQUE constraint" }
+      ],
+      "correct": "D",
+      "explanation": "A reference has to point at exactly one row, so the target must be unique: a primary key or a UNIQUE column. Column names don't have to match."
+    },
+    {
+      "id": "fk-4", "conceptId": "fk", "difficulty": 1, "verified": true,
+      "stem": "You insert an order with customer_id = 999, but no customer 999 exists. The foreign key is enforced.\nWhat happens?",
+      "options": [
+        { "id": "A", "text": "It inserts now and gets checked later", "misconception": "It assumes constraints are checked in the background." },
+        { "id": "B", "text": "Customer 999 is created automatically", "misconception": "It imagines the database filling in the missing parent." },
+        { "id": "C", "text": "The insert is rejected for violating referential integrity" },
+        { "id": "D", "text": "It inserts with customer_id set to NULL", "misconception": "It assumes the database quietly repairs bad values." }
+      ],
+      "correct": "C",
+      "explanation": "Referential integrity means every non-NULL foreign key value must exist in the referenced table, so the insert fails. Insert the customer first."
+    },
+
+    {
+      "id": "norm-1", "conceptId": "norm", "difficulty": 2, "verified": true,
+      "stem": "Results(student_id, unit_id, unit_name, grade) has the key (student_id, unit_id). unit_name depends only on unit_id.\nWhich normal form does it break?",
+      "options": [
+        { "id": "A", "text": "1NF", "misconception": "Repeated data feels like a 1NF problem, but 1NF is about atomic values." },
+        { "id": "B", "text": "2NF" },
+        { "id": "C", "text": "3NF", "misconception": "It mixes up partial dependencies (2NF) with transitive ones (3NF)." },
+        { "id": "D", "text": "None, it's fine", "misconception": "It doesn't notice unit_name repeats for every student in the unit." }
+      ],
+      "correct": "B",
+      "explanation": "unit_name depends on only part of the composite key (unit_id), which is a partial dependency and breaks 2NF. Move unit_name into a Units table."
+    },
+    {
+      "id": "norm-2", "conceptId": "norm", "difficulty": 1, "verified": true,
+      "stem": "A column phones stores \"0412 111 222, 0499 333 444\" in a single cell.\nWhich normal form does this break?",
+      "options": [
+        { "id": "A", "text": "2NF", "misconception": "It assumes every normalisation problem is about keys." },
+        { "id": "B", "text": "3NF", "misconception": "It reaches for the highest normal form it knows." },
+        { "id": "C", "text": "1NF" },
+        { "id": "D", "text": "None, it's one text value", "misconception": "It treats a list squeezed into a string as a single value." }
+      ],
+      "correct": "C",
+      "explanation": "1NF requires atomic values: one value per cell. A list of phone numbers in one cell can't be queried or constrained properly. Put phones in their own table, one row each."
+    },
+    {
+      "id": "norm-3", "conceptId": "norm", "difficulty": 3, "verified": true,
+      "stem": "Employee(emp_id, dept_id, dept_name) with key emp_id. dept_name depends on dept_id.\nWhat is the problem?",
+      "options": [
+        { "id": "A", "text": "A partial dependency, so it breaks 2NF", "misconception": "With a single-column key there are no partial dependencies." },
+        { "id": "B", "text": "No problem, emp_id is unique", "misconception": "A unique key doesn't stop facts being repeated in other columns." },
+        { "id": "C", "text": "It breaks 1NF", "misconception": "All the values are atomic, so 1NF is fine." },
+        { "id": "D", "text": "A transitive dependency, so it breaks 3NF" }
+      ],
+      "correct": "D",
+      "explanation": "emp_id determines dept_id, which determines dept_name. That chain is a transitive dependency and breaks 3NF. Each department's name repeats for every employee in it."
+    },
+    {
+      "id": "norm-4", "conceptId": "norm", "difficulty": 1, "verified": true,
+      "stem": "What is the main practical benefit of normalising to 3NF?",
+      "options": [
+        { "id": "A", "text": "Each fact is stored once, which prevents update anomalies" },
+        { "id": "B", "text": "Reads are always faster", "misconception": "Normalising often adds joins, so reads can be slower." },
+        { "id": "C", "text": "You end up with fewer tables", "misconception": "Normalising usually splits tables, giving you more." },
+        { "id": "D", "text": "You no longer need keys or indexes", "misconception": "Normalisation depends on keys, it doesn't replace them." }
+      ],
+      "correct": "A",
+      "explanation": "When a fact lives in one place, you can't update it in one row and forget another. That's the point of normalising. It's a trade-off against extra joins, not a speed boost."
+    },
+
+    {
+      "id": "groupby-1", "conceptId": "groupby", "difficulty": 2, "verified": true,
+      "stem": "In standard SQL (for example PostgreSQL):\nSELECT dept, name, COUNT(*) FROM staff GROUP BY dept;\nWhat happens?",
+      "options": [
+        { "id": "A", "text": "It returns one row per staff member", "misconception": "It forgets GROUP BY collapses rows." },
+        { "id": "B", "text": "An error: name must be in GROUP BY or inside an aggregate" },
+        { "id": "C", "text": "It picks the first name in each department", "misconception": "Some lax database modes do this, which makes it look allowed." },
+        { "id": "D", "text": "It ignores the name column", "misconception": "It assumes unusable columns are dropped silently." }
+      ],
+      "correct": "B",
+      "explanation": "Each group becomes one row, but a department has many names, so the database can't choose one. Every selected column must be grouped or aggregated."
+    },
+    {
+      "id": "groupby-2", "conceptId": "groupby", "difficulty": 1, "verified": true,
+      "stem": "sales(region, amount) has rows (N, 10), (N, 20), (S, 5).\nWhat does SELECT region, SUM(amount) FROM sales GROUP BY region return?",
+      "options": [
+        { "id": "A", "text": "One row: 35", "misconception": "It forgets GROUP BY splits the rows by region." },
+        { "id": "B", "text": "Three rows, one per sale", "misconception": "It assumes grouping keeps every row." },
+        { "id": "C", "text": "N 20, S 5", "misconception": "It reads SUM as 'the largest' or 'the last' value." },
+        { "id": "D", "text": "N 30, S 5" }
+      ],
+      "correct": "D",
+      "explanation": "GROUP BY region makes one group per region, and SUM adds the amounts within each: N is 10 + 20 = 30, S is 5."
+    },
+    {
+      "id": "groupby-3", "conceptId": "groupby", "difficulty": 3, "verified": true,
+      "stem": "orders has 10 rows from 4 different customers, plus one of those 10 rows has customer_id NULL.\nWhat does SELECT COUNT(DISTINCT customer_id) FROM orders return?",
+      "options": [
+        { "id": "A", "text": "10", "misconception": "It counts rows instead of distinct values." },
+        { "id": "B", "text": "5", "misconception": "It counts NULL as one more distinct value." },
+        { "id": "C", "text": "4" },
+        { "id": "D", "text": "3", "misconception": "It subtracts the NULL row's customer from the 4." }
+      ],
+      "correct": "C",
+      "explanation": "COUNT(DISTINCT col) counts distinct non-NULL values. There are 4 real customers, and the NULL isn't counted."
+    },
+    {
+      "id": "groupby-4", "conceptId": "groupby", "difficulty": 1, "verified": true,
+      "stem": "SELECT dept FROM staff GROUP BY dept;\nThis gives the same rows as which query?",
+      "options": [
+        { "id": "A", "text": "SELECT DISTINCT dept FROM staff;" },
+        { "id": "B", "text": "SELECT dept FROM staff;", "misconception": "It thinks GROUP BY only sorts." },
+        { "id": "C", "text": "SELECT COUNT(dept) FROM staff;", "misconception": "It assumes GROUP BY always means counting." },
+        { "id": "D", "text": "Neither, it errors without an aggregate", "misconception": "It assumes GROUP BY requires an aggregate function." }
+      ],
+      "correct": "A",
+      "explanation": "Grouping by dept with no aggregate gives one row per distinct dept, the same as SELECT DISTINCT. An aggregate is allowed but not required."
+    },
+
+    {
+      "id": "indexes-1", "conceptId": "indexes", "difficulty": 1, "verified": true,
+      "stem": "What is the main trade-off of adding an index on a column?",
+      "options": [
+        { "id": "A", "text": "Everything gets faster at no cost", "misconception": "It forgets every insert and update must also update the index." },
+        { "id": "B", "text": "Reads get slower but writes get faster", "misconception": "It has the trade-off backwards." },
+        { "id": "C", "text": "Faster lookups on that column, but slower writes and more storage" },
+        { "id": "D", "text": "It guarantees values are unique", "misconception": "Only a UNIQUE index does that. A plain index allows duplicates." }
+      ],
+      "correct": "C",
+      "explanation": "An index is an extra sorted structure. It makes finding rows by that column fast, but every write has to keep it up to date and it takes space."
+    },
+    {
+      "id": "indexes-2", "conceptId": "indexes", "difficulty": 2, "verified": true,
+      "stem": "There is a composite index on (last_name, first_name).\nWhich condition can use it most directly?",
+      "options": [
+        { "id": "A", "text": "WHERE first_name = 'Ana'", "misconception": "It assumes any column in the index can be searched equally well." },
+        { "id": "B", "text": "ORDER BY first_name", "misconception": "The index is sorted by last_name first, not first_name." },
+        { "id": "C", "text": "WHERE first_name LIKE '%na'", "misconception": "Wrong column and a leading wildcard." },
+        { "id": "D", "text": "WHERE last_name = 'Ng'" }
+      ],
+      "correct": "D",
+      "explanation": "A composite index is sorted by its first column, then the second. Like a phone book sorted by surname, it helps when you search by the leftmost column."
+    },
+    {
+      "id": "indexes-3", "conceptId": "indexes", "difficulty": 2, "verified": true,
+      "stem": "name has a normal B-tree index. A query uses WHERE name LIKE '%son'.\nWhat usually happens?",
+      "options": [
+        { "id": "A", "text": "The index is used for a fast seek", "misconception": "It assumes any condition on an indexed column uses the index." },
+        { "id": "B", "text": "The leading wildcard stops an index seek, so it scans" },
+        { "id": "C", "text": "The query errors", "misconception": "LIKE with a leading % is valid, just slow." },
+        { "id": "D", "text": "LIKE never uses indexes, even 'Jo%'", "misconception": "It overgeneralises. A fixed prefix like 'Jo%' can use the index." }
+      ],
+      "correct": "B",
+      "explanation": "A B-tree is sorted from the start of the string. With '%son' you don't know how the name starts, so the database can't jump to a spot and usually scans."
+    },
+    {
+      "id": "indexes-4", "conceptId": "indexes", "difficulty": 3, "verified": true,
+      "stem": "A table has 20 rows and an index on the searched column, but the query planner ignores the index.\nWhy?",
+      "options": [
+        { "id": "A", "text": "The planner ignores indexes unless you add a hint", "misconception": "Planners use indexes on their own when it's worth it." },
+        { "id": "B", "text": "Scanning a tiny table is cheaper than looking things up in the index" },
+        { "id": "C", "text": "Indexes only work on tables over 1,000 rows", "misconception": "There's no fixed cut-off. It's a cost estimate." },
+        { "id": "D", "text": "The index must be corrupted", "misconception": "It assumes not using the index means something broke." }
+      ],
+      "correct": "B",
+      "explanation": "The planner estimates costs. For 20 rows, reading the whole table is about one page of work, which beats walking an index and then fetching rows."
+    },
+
+    {
+      "id": "acid-1", "conceptId": "acid", "difficulty": 1, "verified": true,
+      "stem": "A transfer debits account A, then the system crashes before crediting account B.\nWhich ACID property makes sure the debit is undone?",
+      "options": [
+        { "id": "A", "text": "Consistency", "misconception": "'Not half-done' sounds like consistency, but that's about constraints." },
+        { "id": "B", "text": "Isolation", "misconception": "Isolation is about concurrent transactions, not crashes." },
+        { "id": "C", "text": "Atomicity" },
+        { "id": "D", "text": "Durability", "misconception": "Crashes make durability come to mind, but it protects committed work." }
+      ],
+      "correct": "C",
+      "explanation": "Atomicity means all or nothing. The transaction never committed, so the debit is rolled back. Durability only applies to work that was committed."
+    },
+    {
+      "id": "acid-2", "conceptId": "acid", "difficulty": 1, "verified": true,
+      "stem": "COMMIT returns success, then the power fails a second later.\nWhat does Durability guarantee?",
+      "options": [
+        { "id": "A", "text": "The transaction is rolled back on restart", "misconception": "It confuses committed and uncommitted work." },
+        { "id": "B", "text": "The changes survive only if a checkpoint happened", "misconception": "The write-ahead log makes commits durable without waiting for a checkpoint." },
+        { "id": "C", "text": "Other transactions can't see the changes", "misconception": "That describes isolation, not durability." },
+        { "id": "D", "text": "The committed changes survive" }
+      ],
+      "correct": "D",
+      "explanation": "Once a commit is acknowledged it is recorded durably (usually in a write-ahead log), so it survives crashes and power loss."
+    },
+    {
+      "id": "acid-3", "conceptId": "acid", "difficulty": 2, "verified": true,
+      "stem": "Inside a transaction you run three UPDATEs, then ROLLBACK.\nWhat is undone?",
+      "options": [
+        { "id": "A", "text": "All three updates since the transaction began" },
+        { "id": "B", "text": "Only the last update", "misconception": "It confuses ROLLBACK with rolling back to a savepoint." },
+        { "id": "C", "text": "The last committed transaction", "misconception": "It assumes ROLLBACK can undo work that's already committed." },
+        { "id": "D", "text": "Nothing, updates apply immediately", "misconception": "It assumes each statement is permanent as soon as it runs." }
+      ],
+      "correct": "A",
+      "explanation": "ROLLBACK undoes every change made in the current transaction. Committed work can't be rolled back; you'd need a new transaction to reverse it."
+    },
+    {
+      "id": "acid-4", "conceptId": "acid", "difficulty": 2, "verified": true,
+      "stem": "What does Consistency mean in ACID?",
+      "options": [
+        { "id": "A", "text": "All replicas hold the same data", "misconception": "It mixes up ACID consistency with distributed-systems consistency." },
+        { "id": "B", "text": "A transaction moves the database from one valid state to another, respecting all constraints" },
+        { "id": "C", "text": "Every read returns the latest write", "misconception": "That's closer to isolation or replication guarantees." },
+        { "id": "D", "text": "Transactions run one at a time", "misconception": "Databases run many transactions at once; isolation manages that." }
+      ],
+      "correct": "B",
+      "explanation": "Consistency means a committed transaction never leaves broken constraints behind (keys, checks, foreign keys). If it would, it's rejected."
+    },
+
+    {
+      "id": "isolation-1", "conceptId": "isolation", "difficulty": 1, "verified": true,
+      "stem": "What is a dirty read?",
+      "options": [
+        { "id": "A", "text": "Reading the same row twice and getting two different committed values", "misconception": "That's a non-repeatable read." },
+        { "id": "B", "text": "New rows appearing when you rerun a query", "misconception": "That's a phantom read." },
+        { "id": "C", "text": "Reading another transaction's uncommitted changes" },
+        { "id": "D", "text": "Reading committed data that is a few seconds old", "misconception": "'Dirty' sounds like 'stale', but stale committed data isn't a dirty read." }
+      ],
+      "correct": "C",
+      "explanation": "A dirty read sees data another transaction hasn't committed yet. If that transaction rolls back, you read something that never officially existed."
+    },
+    {
+      "id": "isolation-2", "conceptId": "isolation", "difficulty": 2, "verified": true,
+      "stem": "Which is the lowest standard isolation level that prevents dirty reads?",
+      "options": [
+        { "id": "A", "text": "Read Uncommitted", "misconception": "This is the one level that allows them." },
+        { "id": "B", "text": "Read Committed" },
+        { "id": "C", "text": "Repeatable Read", "misconception": "It assumes you need a stronger level than you do." },
+        { "id": "D", "text": "Serializable", "misconception": "It works, but it isn't the lowest level that does." }
+      ],
+      "correct": "B",
+      "explanation": "Read Committed only lets you see committed data, which rules out dirty reads. Higher levels add protection against non-repeatable and phantom reads."
+    },
+    {
+      "id": "isolation-3", "conceptId": "isolation", "difficulty": 3, "verified": true,
+      "stem": "T1 runs SELECT COUNT(*) FROM orders WHERE total > 100 twice. Between the two, T2 inserts a new order with total 500 and commits. T1 gets a bigger count the second time.\nWhat is this called?",
+      "options": [
+        { "id": "A", "text": "A dirty read", "misconception": "T2 committed, so nothing uncommitted was read." },
+        { "id": "B", "text": "A non-repeatable read", "misconception": "Close, but that's an existing row changing. Here a new row appeared." },
+        { "id": "C", "text": "A lost update", "misconception": "Nobody's write was overwritten." },
+        { "id": "D", "text": "A phantom read" }
+      ],
+      "correct": "D",
+      "explanation": "A phantom is a new row that starts matching your query. Non-repeatable reads are about an existing row's values changing. Serializable prevents both."
+    },
+    {
+      "id": "isolation-4", "conceptId": "isolation", "difficulty": 2, "verified": true,
+      "stem": "Why don't databases use Serializable isolation for everything by default?",
+      "options": [
+        { "id": "A", "text": "It reduces concurrency and causes more blocking or transaction retries" },
+        { "id": "B", "text": "It allows dirty reads", "misconception": "It has the strength of the levels backwards." },
+        { "id": "C", "text": "It isn't part of the SQL standard", "misconception": "Serializable is the strongest standard level." },
+        { "id": "D", "text": "It disables indexes", "misconception": "Isolation and indexing are unrelated." }
+      ],
+      "correct": "A",
+      "explanation": "Serializable makes transactions behave as if they ran one by one, which costs throughput through locking or aborted transactions that must retry."
+    },
+
+    {
+      "id": "er-1", "conceptId": "er", "difficulty": 1, "verified": true,
+      "stem": "A student enrols in many units and a unit has many students.\nHow do you implement this relationship in tables?",
+      "options": [
+        { "id": "A", "text": "A foreign key in students pointing to units", "misconception": "That only lets each student have one unit." },
+        { "id": "B", "text": "A foreign key in units pointing to students", "misconception": "That only lets each unit have one student." },
+        { "id": "C", "text": "A junction table with foreign keys to both" },
+        { "id": "D", "text": "Merge students and units into one table", "misconception": "That repeats data everywhere." }
+      ],
+      "correct": "C",
+      "explanation": "Many-to-many needs a junction table (like Enrolment) with one row per student-unit pair and a foreign key to each side."
+    },
+    {
+      "id": "er-2", "conceptId": "er", "difficulty": 1, "verified": true,
+      "stem": "Each order belongs to exactly one customer. A customer can have many orders.\nWhere does the foreign key go?",
+      "options": [
+        { "id": "A", "text": "In customers, pointing to orders", "misconception": "It imagines the 'one' side holding a list of the many." },
+        { "id": "B", "text": "In orders, pointing to customers" },
+        { "id": "C", "text": "In a junction table", "misconception": "Junction tables are for many-to-many, not one-to-many." },
+        { "id": "D", "text": "In both tables", "misconception": "Two references to keep in sync is a recipe for errors." }
+      ],
+      "correct": "B",
+      "explanation": "In one-to-many, the 'many' side holds the foreign key. Each order stores the one customer it belongs to."
+    },
+    {
+      "id": "er-3", "conceptId": "er", "difficulty": 2, "verified": true,
+      "stem": "In crow's foot notation, what does the crow's foot (three prongs) at one end of a line mean?",
+      "options": [
+        { "id": "A", "text": "One", "misconception": "That's the single bar." },
+        { "id": "B", "text": "Zero, or optional", "misconception": "That's the circle." },
+        { "id": "C", "text": "Primary key", "misconception": "Keys are marked inside the entity box, not on the line." },
+        { "id": "D", "text": "Many" }
+      ],
+      "correct": "D",
+      "explanation": "The crow's foot means 'many' on that end. A bar means one and a circle means zero (optional). They're combined, such as circle plus crow's foot for 'zero or many'."
+    },
+    {
+      "id": "er-4", "conceptId": "er", "difficulty": 2, "verified": true,
+      "stem": "Each person has at most one passport, and each passport belongs to exactly one person.\nWhat is the cardinality?",
+      "options": [
+        { "id": "A", "text": "One-to-many", "misconception": "It assumes every relationship has a 'many' side." },
+        { "id": "B", "text": "Many-to-many", "misconception": "Nothing here has many." },
+        { "id": "C", "text": "One-to-one" },
+        { "id": "D", "text": "Many-to-one", "misconception": "It flips one-to-many without checking either side." }
+      ],
+      "correct": "C",
+      "explanation": "Each side has at most one partner, so it's one-to-one (optional on the person side). Put the foreign key, with UNIQUE, in passports."
+    },
+
+    {
+      "id": "views-1", "conceptId": "views", "difficulty": 1, "verified": true,
+      "stem": "What does a standard (non-materialised) view store?",
+      "options": [
+        { "id": "A", "text": "A copy of the data, refreshed nightly", "misconception": "That describes a materialised view on a schedule." },
+        { "id": "B", "text": "The query definition. Rows are computed each time you query it" },
+        { "id": "C", "text": "A snapshot of the data from when it was created", "misconception": "It thinks a view is a frozen copy." },
+        { "id": "D", "text": "An index on the base tables", "misconception": "It confuses views with indexes." }
+      ],
+      "correct": "B",
+      "explanation": "A standard view is a saved query. Each time you select from it, the database runs that query against the current data."
+    },
+    {
+      "id": "views-2", "conceptId": "views", "difficulty": 1, "verified": true,
+      "stem": "You update a row in a base table, then immediately select from a standard view built on it.\nDo you see the change?",
+      "options": [
+        { "id": "A", "text": "Yes, straight away" },
+        { "id": "B", "text": "No, not until the view is refreshed", "misconception": "That's true of materialised views, not standard ones." },
+        { "id": "C", "text": "Only after the view is dropped and recreated", "misconception": "It thinks a view is a copy." },
+        { "id": "D", "text": "Only if the view has an index", "misconception": "It mixes up visibility with performance." }
+      ],
+      "correct": "A",
+      "explanation": "A standard view runs its query on every use, so it always reflects the current base data."
+    },
+    {
+      "id": "views-3", "conceptId": "views", "difficulty": 2, "verified": true,
+      "stem": "Which is a good reason to create a view?",
+      "options": [
+        { "id": "A", "text": "To make queries faster automatically", "misconception": "A standard view doesn't cache anything, it runs the same query." },
+        { "id": "B", "text": "To replace foreign keys", "misconception": "Views don't enforce anything between tables." },
+        { "id": "C", "text": "To keep a backup copy of a table", "misconception": "A view holds no data of its own." },
+        { "id": "D", "text": "To give some users access to only certain columns or rows" }
+      ],
+      "correct": "D",
+      "explanation": "Views are great for security and simplicity: grant access to a view that hides sensitive columns, or wrap a complex join behind a simple name."
+    },
+    {
+      "id": "views-4", "conceptId": "views", "difficulty": 2, "verified": true,
+      "stem": "How is a materialised view different from a standard view?",
+      "options": [
+        { "id": "A", "text": "They're the same thing with different names", "misconception": "The names reflect a real difference in storage." },
+        { "id": "B", "text": "A standard view stores results; a materialised view recomputes them", "misconception": "It has the two backwards." },
+        { "id": "C", "text": "A materialised view stores the results and must be refreshed; a standard view recomputes every time" },
+        { "id": "D", "text": "A materialised view can't be indexed", "misconception": "Because it stores rows, it usually can be indexed." }
+      ],
+      "correct": "C",
+      "explanation": "A materialised view saves its result rows, so reads are fast but the data can go stale until refreshed. A standard view is always current but runs its query each time."
+    }
+  ]
+}

@@ -1,0 +1,606 @@
+{
+  "unit": { "id": "soil-chemistry", "name": "Soil Properties (Chemistry)" },
+  "concepts": [
+    { "id": "soilph", "unitId": "soil-chemistry", "name": "Soil pH and acidity", "summary": "The log scale, active vs reserve acidity, and why acid soils hurt roots." },
+    { "id": "cec", "unitId": "soil-chemistry", "name": "Cation exchange capacity", "summary": "How negatively charged clay and humus hold nutrient cations." },
+    { "id": "clays", "unitId": "soil-chemistry", "name": "Clay minerals", "summary": "1:1 vs 2:1 clays, isomorphous substitution and why some clays swell." },
+    { "id": "som", "unitId": "soil-chemistry", "name": "Soil organic matter", "summary": "Humus, C:N ratios and how organic matter builds structure and CEC." },
+    { "id": "bases", "unitId": "soil-chemistry", "name": "Exchangeable cations and base saturation", "summary": "Which cations sit on the exchange sites, how strongly, and what base saturation means." },
+    { "id": "salinity", "unitId": "soil-chemistry", "name": "Salinity and sodicity", "summary": "Too much salt vs too much sodium, and how gypsum helps." },
+    { "id": "nitrogen", "unitId": "soil-chemistry", "name": "Soil nitrogen", "summary": "Nitrification, denitrification, leaching and volatilisation." },
+    { "id": "phosphorus", "unitId": "soil-chemistry", "name": "Phosphorus availability", "summary": "Why phosphate gets locked up by Fe, Al and Ca, and how it reaches rivers." },
+    { "id": "redox", "unitId": "soil-chemistry", "name": "Redox in waterlogged soils", "summary": "What happens to O2, nitrate, iron and sulfate when a soil floods." },
+    { "id": "buffering", "unitId": "soil-chemistry", "name": "Buffering and liming", "summary": "Why soils resist pH change and how lime actually works." },
+    { "id": "charge", "unitId": "soil-chemistry", "name": "Variable charge", "summary": "pH-dependent charge, points of zero charge and anion exchange." },
+    { "id": "texture", "unitId": "soil-chemistry", "name": "Texture and surface area", "summary": "Sand, silt and clay, and why particle size drives soil chemistry." }
+  ],
+  "questions": [
+    {
+      "id": "soilph-1", "conceptId": "soilph", "difficulty": 1, "verified": true,
+      "stem": "Soil A has pH 5.0 and soil B has pH 6.0.\nHow does the H+ activity in soil A compare with soil B?",
+      "options": [
+        { "id": "A", "text": "1.2 times as much", "misconception": "It compares the pH numbers directly, as if 6/5 meant something." },
+        { "id": "B", "text": "2 times as much", "misconception": "It treats one pH unit as a doubling." },
+        { "id": "C", "text": "10 times as much" },
+        { "id": "D", "text": "100 times as much", "misconception": "That's the difference for two pH units, not one." }
+      ],
+      "correct": "C",
+      "explanation": "pH is the negative log (base 10) of H+ activity, so each unit is a factor of 10. A soil at pH 5 has ten times the H+ activity of one at pH 6."
+    },
+    {
+      "id": "soilph-2", "conceptId": "soilph", "difficulty": 2, "verified": true,
+      "stem": "In an acid clay soil, where is most of the acidity?",
+      "options": [
+        { "id": "A", "text": "Held on clay and organic matter surfaces as reserve (exchangeable and residual) acidity" },
+        { "id": "B", "text": "Dissolved in the soil water, where the pH meter measures it", "misconception": "The pH reading only sees the small active fraction in solution." },
+        { "id": "C", "text": "In the rainwater that fell on it", "misconception": "Rain starts acidification, but the acidity ends up stored in the soil." },
+        { "id": "D", "text": "Inside plant roots", "misconception": "Roots release some H+, but they don't store the soil's acidity." }
+      ],
+      "correct": "A",
+      "explanation": "Reserve acidity on colloids can be thousands of times larger than the active acidity in solution. That's why pH alone can't tell you how much lime a soil needs."
+    },
+    {
+      "id": "soilph-3", "conceptId": "soilph", "difficulty": 1, "verified": true,
+      "stem": "Why are strongly acid soils (below about pH 5) toxic to many crops?",
+      "options": [
+        { "id": "A", "text": "H+ ions burn the roots directly", "misconception": "H+ matters, but the main damage comes from what the acidity dissolves." },
+        { "id": "B", "text": "Aluminium dissolves as Al3+, which damages root tips" },
+        { "id": "C", "text": "All the nitrogen disappears", "misconception": "Acidity slows some N processes but doesn't remove all the nitrogen." },
+        { "id": "D", "text": "Calcium becomes toxic", "misconception": "Acid soils are usually short of calcium, not overloaded with it." }
+      ],
+      "correct": "B",
+      "explanation": "Below roughly pH 5.5, aluminium from clay minerals and oxides dissolves as toxic Al3+, which stunts root growth. Liming precipitates it back out as Al(OH)3."
+    },
+    {
+      "id": "soilph-4", "conceptId": "soilph", "difficulty": 3, "verified": true,
+      "stem": "The same soil is measured in water and in 0.01 M CaCl2. How does the CaCl2 reading usually compare?",
+      "options": [
+        { "id": "A", "text": "Higher, because calcium is a base", "misconception": "Ca2+ isn't a base. It doesn't remove H+." },
+        { "id": "B", "text": "Exactly the same", "misconception": "The salt changes what's in the solution." },
+        { "id": "C", "text": "It can't be measured, because soil pH needs pure water", "misconception": "0.01 M CaCl2 is a standard method." },
+        { "id": "D", "text": "Lower, because Ca2+ swaps exchangeable H+ and Al3+ into solution" }
+      ],
+      "correct": "D",
+      "explanation": "Calcium displaces some reserve acidity into solution, so the CaCl2 pH is usually about 0.5 units lower. It's also more stable, because it evens out seasonal differences in soil salt."
+    },
+
+    {
+      "id": "cec-1", "conceptId": "cec", "difficulty": 1, "verified": true,
+      "stem": "What is cation exchange capacity (CEC)?",
+      "options": [
+        { "id": "A", "text": "The amount of positive charge on soil surfaces", "misconception": "Soil colloids are mostly negative. That's why they hold cations." },
+        { "id": "B", "text": "The total amount of exchangeable cations a soil can hold on its negative charges" },
+        { "id": "C", "text": "The concentration of cations dissolved in soil water", "misconception": "That's the soil solution, not the exchange sites." },
+        { "id": "D", "text": "How much nitrate the soil can store", "misconception": "Nitrate is an anion." }
+      ],
+      "correct": "B",
+      "explanation": "Negatively charged clay and humus hold cations like Ca2+, Mg2+, K+ and NH4+ that can swap with the soil solution. CEC is reported in cmol(+)/kg."
+    },
+    {
+      "id": "cec-2", "conceptId": "cec", "difficulty": 1, "verified": true,
+      "stem": "Which soil would have the highest CEC?",
+      "options": [
+        { "id": "A", "text": "A sandy soil with little organic matter", "misconception": "Sand has very little charged surface." },
+        { "id": "B", "text": "A kaolinite-rich clay soil", "misconception": "All clays feel similar, but kaolinite has a low CEC." },
+        { "id": "C", "text": "A smectite clay soil rich in organic matter" },
+        { "id": "D", "text": "A quartz silt", "misconception": "Quartz carries almost no charge." }
+      ],
+      "correct": "C",
+      "explanation": "Smectite (about 80 to 120 cmol(+)/kg) and humus (often 200 or more) both carry lots of negative charge. Kaolinite is only about 3 to 15, and quartz is near zero."
+    },
+    {
+      "id": "cec-3", "conceptId": "cec", "difficulty": 2, "verified": true,
+      "stem": "A soil holds 2 cmol of Ca2+ per kg on its exchange sites. How much CEC does that occupy?",
+      "options": [
+        { "id": "A", "text": "4 cmol(+)/kg" },
+        { "id": "B", "text": "2 cmol(+)/kg", "misconception": "It forgets that each Ca2+ carries two charges." },
+        { "id": "C", "text": "1 cmol(+)/kg", "misconception": "It divides by the charge instead of multiplying." },
+        { "id": "D", "text": "It depends on the soil pH", "misconception": "The conversion is fixed. Only the total CEC can vary with pH." }
+      ],
+      "correct": "A",
+      "explanation": "CEC counts charge, so multiply moles by the ion's charge: 2 × 2 = 4 cmol(+)/kg. Numerically, cmol(+)/kg is the same as the older meq/100 g."
+    },
+    {
+      "id": "cec-4", "conceptId": "cec", "difficulty": 3, "verified": true,
+      "stem": "Adding compost raises CEC much more in a near-neutral soil than in a very acid one. Why?",
+      "options": [
+        { "id": "A", "text": "Humus has permanent charge from isomorphous substitution", "misconception": "That's how clay minerals get charge, not humus." },
+        { "id": "B", "text": "Acid destroys compost instantly", "misconception": "Acidity slows decomposition rather than speeding it up." },
+        { "id": "C", "text": "There's no real difference", "misconception": "Humus charge depends strongly on pH." },
+        { "id": "D", "text": "Humus charge comes from carboxyl and phenolic groups that lose H+ as pH rises" }
+      ],
+      "correct": "D",
+      "explanation": "Organic matter's charge is pH-dependent. At low pH its acidic groups keep their H+, so little negative charge is available. Near neutral, more groups ionise and the CEC climbs."
+    },
+
+    {
+      "id": "clays-1", "conceptId": "clays", "difficulty": 2, "verified": true,
+      "stem": "Where does most of smectite's permanent negative charge come from?",
+      "options": [
+        { "id": "A", "text": "Broken edges of the clay crystals", "misconception": "Edges matter most for kaolinite, and their charge varies with pH." },
+        { "id": "B", "text": "Adsorbed nitrate", "misconception": "Nitrate is negative but isn't part of the clay." },
+        { "id": "C", "text": "Acid rain", "misconception": "Rain doesn't build charge into the crystal." },
+        { "id": "D", "text": "Isomorphous substitution, such as Mg2+ replacing Al3+ in the crystal" }
+      ],
+      "correct": "D",
+      "explanation": "When a lower-charge ion takes the place of a higher-charge one as the mineral forms, the layer is left with a net negative charge that doesn't depend on pH. That's permanent charge."
+    },
+    {
+      "id": "clays-2", "conceptId": "clays", "difficulty": 2, "verified": true,
+      "stem": "Why does smectite swell when wet while kaolinite barely does?",
+      "options": [
+        { "id": "A", "text": "Smectite layers are loosely held, so water and cations get in between them; kaolinite layers are hydrogen-bonded tightly" },
+        { "id": "B", "text": "Kaolinite has more charge", "misconception": "Kaolinite has far less charge than smectite." },
+        { "id": "C", "text": "Smectite particles are bigger", "misconception": "Smectite particles are typically smaller." },
+        { "id": "D", "text": "Kaolinite isn't really a clay", "misconception": "Kaolinite is a classic clay mineral." }
+      ],
+      "correct": "A",
+      "explanation": "Kaolinite's 1:1 layers are hydrogen-bonded to each other, so water can't get in. Smectite's 2:1 layers are held loosely by hydrated cations, so the interlayer expands. That's why smectite soils crack wide in summer."
+    },
+    {
+      "id": "clays-3", "conceptId": "clays", "difficulty": 3, "verified": true,
+      "stem": "Illite is a 2:1 clay like smectite, but it swells very little. Why?",
+      "options": [
+        { "id": "A", "text": "It has no layer charge", "misconception": "Illite has a high layer charge." },
+        { "id": "B", "text": "K+ ions fit snugly between the layers and lock them together" },
+        { "id": "C", "text": "It's actually a 1:1 clay", "misconception": "Illite is 2:1." },
+        { "id": "D", "text": "It's amorphous", "misconception": "Illite is crystalline." }
+      ],
+      "correct": "B",
+      "explanation": "Potassium fits into the hexagonal holes of the tetrahedral sheets and isn't easily hydrated, so it pins the layers shut. That also fixes K, which plants can only get at slowly."
+    },
+    {
+      "id": "clays-4", "conceptId": "clays", "difficulty": 2, "verified": true,
+      "stem": "Highly weathered tropical soils (like Oxisols) are dominated by kaolinite and Fe/Al oxides. What does that mean for their CEC?",
+      "options": [
+        { "id": "A", "text": "Very high, because old soils accumulate nutrients", "misconception": "Weathering strips out high-charge minerals and nutrients." },
+        { "id": "B", "text": "Only positive charge at every pH", "misconception": "Oxides can be positive in acid conditions, but their charge varies with pH." },
+        { "id": "C", "text": "Low, and much of it depends on pH" },
+        { "id": "D", "text": "The same as a young soil", "misconception": "Mineralogy changes a lot as soils weather." }
+      ],
+      "correct": "C",
+      "explanation": "Kaolinite and oxides carry little permanent charge, so CEC is low and comes mainly from pH-dependent surfaces and organic matter. Keeping organic matter is critical in these soils."
+    },
+
+    {
+      "id": "som-1", "conceptId": "som", "difficulty": 1, "verified": true,
+      "stem": "Per kilogram, which usually has the highest CEC?",
+      "options": [
+        { "id": "A", "text": "Smectite clay", "misconception": "Smectite is high, but humus is usually higher." },
+        { "id": "B", "text": "Humus" },
+        { "id": "C", "text": "Kaolinite", "misconception": "Kaolinite is one of the lowest-CEC clays." },
+        { "id": "D", "text": "Quartz sand", "misconception": "Quartz is close to zero." }
+      ],
+      "correct": "B",
+      "explanation": "Humus can reach 200 to 400 cmol(+)/kg, more than smectite at about 80 to 120. A few percent of organic matter can supply much of a soil's CEC."
+    },
+    {
+      "id": "som-2", "conceptId": "som", "difficulty": 2, "verified": true,
+      "stem": "Straw with a C:N ratio of about 80:1 is dug into soil. What happens to plant-available nitrogen in the short term?",
+      "options": [
+        { "id": "A", "text": "It rises quickly as the straw releases N", "misconception": "Straw has too little N for the microbes eating it." },
+        { "id": "B", "text": "It's unaffected", "misconception": "Decomposers interact strongly with soil N." },
+        { "id": "C", "text": "It turns into nitrate and leaches immediately", "misconception": "The straw ties N up rather than releasing it." },
+        { "id": "D", "text": "It falls, because microbes take up soil N to break down the straw" }
+      ],
+      "correct": "D",
+      "explanation": "Decomposers need food at roughly 24:1 C:N. High-carbon residues force them to pull mineral N from the soil (immobilisation), so crops can go short until decomposition catches up."
+    },
+    {
+      "id": "som-3", "conceptId": "som", "difficulty": 1, "verified": true,
+      "stem": "How does organic matter improve soil structure?",
+      "options": [
+        { "id": "A", "text": "It's heavy, so it packs particles together", "misconception": "Organic matter is light. It loosens soil." },
+        { "id": "B", "text": "It makes the soil totally water-repellent", "misconception": "Some dried organic matter repels water, but that's a problem, not the structure benefit." },
+        { "id": "C", "text": "Organic glues and cation bridges bind mineral particles into stable aggregates" },
+        { "id": "D", "text": "It dissolves the clay", "misconception": "Organic matter binds clay rather than dissolving it." }
+      ],
+      "correct": "C",
+      "explanation": "Microbial gums, fungal hyphae and humus bridged by Ca2+ hold particles together as aggregates. That leaves pores between them for air and water."
+    },
+    {
+      "id": "som-4", "conceptId": "som", "difficulty": 2, "verified": true,
+      "stem": "A soil test reports 2% organic carbon. Roughly how much organic matter is that?",
+      "options": [
+        { "id": "A", "text": "About 3.4%" },
+        { "id": "B", "text": "2%: they're the same thing", "misconception": "Organic matter also contains O, H, N and other elements." },
+        { "id": "C", "text": "About 1.2%", "misconception": "It multiplies by 0.58 instead of dividing." },
+        { "id": "D", "text": "58%", "misconception": "It mistakes the carbon fraction for the answer." }
+      ],
+      "correct": "A",
+      "explanation": "Organic matter is roughly 58% carbon, so organic matter ≈ organic carbon × 1.72, which is about 3.4% here. The factor is a rough average, and some labs use 2."
+    },
+
+    {
+      "id": "bases-1", "conceptId": "bases", "difficulty": 1, "verified": true,
+      "stem": "What is base saturation?",
+      "options": [
+        { "id": "A", "text": "The share of CEC held by H+ and Al3+", "misconception": "That's acid saturation, the opposite." },
+        { "id": "B", "text": "The percentage of the soil that is limestone", "misconception": "It mixes up base saturation with carbonate content." },
+        { "id": "C", "text": "The share of CEC held by Ca2+, Mg2+, K+ and Na+" },
+        { "id": "D", "text": "The pH at which the soil's CEC is full", "misconception": "Base saturation is a percentage of CEC, not a pH." }
+      ],
+      "correct": "C",
+      "explanation": "These 'base' cations don't hydrolyse to make acidity. High base saturation usually goes with a higher pH."
+    },
+    {
+      "id": "bases-2", "conceptId": "bases", "difficulty": 2, "verified": true,
+      "stem": "Which cation is held most strongly on soil exchange sites?",
+      "options": [
+        { "id": "A", "text": "Na+", "misconception": "Sodium is common but held weakly." },
+        { "id": "B", "text": "K+", "misconception": "A single charge is held less strongly than higher charges." },
+        { "id": "C", "text": "Ca2+", "misconception": "Ca2+ is held strongly, but a triple charge beats it." },
+        { "id": "D", "text": "Al3+" }
+      ],
+      "correct": "D",
+      "explanation": "Higher charge and a smaller hydrated size mean stronger holding, roughly Al3+ > Ca2+ > Mg2+ > K+ ≈ NH4+ > Na+. That's why Na+ leaches easily once it's displaced."
+    },
+    {
+      "id": "bases-3", "conceptId": "bases", "difficulty": 2, "verified": true,
+      "stem": "A soil has a CEC of 20 cmol(+)/kg, and its exchangeable Ca2+, Mg2+, K+ and Na+ add up to 15 cmol(+)/kg.\nWhat is its base saturation?",
+      "options": [
+        { "id": "A", "text": "75%" },
+        { "id": "B", "text": "25%", "misconception": "That's the acid saturation." },
+        { "id": "C", "text": "133%", "misconception": "It divides the CEC by the bases." },
+        { "id": "D", "text": "15%", "misconception": "It reads the bases total as a percentage." }
+      ],
+      "correct": "A",
+      "explanation": "Base saturation = bases ÷ CEC × 100 = 15 ÷ 20 × 100 = 75%. The other 25% is held by acidic cations."
+    },
+    {
+      "id": "bases-4", "conceptId": "bases", "difficulty": 2, "verified": true,
+      "stem": "A farmer applies a lot of ammonium (NH4+) fertiliser. What happens on the exchange sites?",
+      "options": [
+        { "id": "A", "text": "Nothing, because the sites are already full", "misconception": "Exchange is dynamic. Full sites still swap." },
+        { "id": "B", "text": "NH4+ swaps onto the sites by mass action, pushing other cations into solution where they can leach" },
+        { "id": "C", "text": "NH4+ attaches only to positive sites", "misconception": "Cations are held on negative sites." },
+        { "id": "D", "text": "NH4+ permanently increases the CEC", "misconception": "CEC is a property of the surfaces, not of what's on them." }
+      ],
+      "correct": "B",
+      "explanation": "Exchange is reversible and driven by concentration. Flooding the solution with NH4+ displaces Ca2+, Mg2+ and K+, which can then be lost in drainage water."
+    },
+
+    {
+      "id": "salinity-1", "conceptId": "salinity", "difficulty": 1, "verified": true,
+      "stem": "What defines a sodic soil?",
+      "options": [
+        { "id": "A", "text": "A high exchangeable sodium percentage (ESP above about 15)" },
+        { "id": "B", "text": "High electrical conductivity from any salts", "misconception": "That's a saline soil." },
+        { "id": "C", "text": "Lots of calcium carbonate", "misconception": "That's a calcareous soil." },
+        { "id": "D", "text": "Very low pH", "misconception": "Sodic soils are usually alkaline." }
+      ],
+      "correct": "A",
+      "explanation": "Sodicity is about sodium on the exchange sites; salinity is about total dissolved salt. A soil can be saline, sodic, both or neither."
+    },
+    {
+      "id": "salinity-2", "conceptId": "salinity", "difficulty": 2, "verified": true,
+      "stem": "Why do sodic soils have such poor structure?",
+      "options": [
+        { "id": "A", "text": "Sodium cements particles together too tightly", "misconception": "It does the opposite. It pushes particles apart." },
+        { "id": "B", "text": "Na+ has a single charge and a large hydrated size, so clay particles disperse and clog pores" },
+        { "id": "C", "text": "Sodium kills the microbes, so structure collapses", "misconception": "The main effect is physical dispersion, not biology." },
+        { "id": "D", "text": "Sodium makes the soil acidic", "misconception": "Sodic soils tend to be alkaline." }
+      ],
+      "correct": "B",
+      "explanation": "A single, bulky hydrated charge can't hold clay plates together, so the clay disperses. The surface seals, water can't soak in, and the soil sets hard when it dries."
+    },
+    {
+      "id": "salinity-3", "conceptId": "salinity", "difficulty": 2, "verified": true,
+      "stem": "Why is gypsum (CaSO4·2H2O) used to fix sodic soils?",
+      "options": [
+        { "id": "A", "text": "It raises the pH", "misconception": "Gypsum is nearly neutral. Raising pH is lime's job." },
+        { "id": "B", "text": "Sulfate locks the sodium in place", "misconception": "The goal is to remove sodium, not lock it in." },
+        { "id": "C", "text": "It adds organic matter", "misconception": "Gypsum is a mineral salt." },
+        { "id": "D", "text": "Its Ca2+ replaces exchangeable Na+, which is then leached away" }
+      ],
+      "correct": "D",
+      "explanation": "Gypsum is soluble enough to supply Ca2+, which out-competes Na+ for exchange sites and flocculates the clay. Water then has to drain through to carry the sodium away."
+    },
+    {
+      "id": "salinity-4", "conceptId": "salinity", "difficulty": 1, "verified": true,
+      "stem": "What does the electrical conductivity (EC) of a soil extract measure?",
+      "options": [
+        { "id": "A", "text": "Sodium only", "misconception": "Every dissolved ion carries current, not just Na+." },
+        { "id": "B", "text": "pH", "misconception": "pH is measured separately." },
+        { "id": "C", "text": "Total dissolved salts (all the ions in solution)" },
+        { "id": "D", "text": "Organic matter content", "misconception": "Organic matter isn't measured by conductivity." }
+      ],
+      "correct": "C",
+      "explanation": "More dissolved ions carry more current, so EC (in dS/m) is a quick measure of salinity. Above about 4 dS/m in a saturated paste extract, a soil is classed as saline."
+    },
+
+    {
+      "id": "nitrogen-1", "conceptId": "nitrogen", "difficulty": 1, "verified": true,
+      "stem": "Why does nitrate leach more easily than ammonium?",
+      "options": [
+        { "id": "A", "text": "Nitrate ions are bigger", "misconception": "Size isn't the issue. Charge is." },
+        { "id": "B", "text": "Nitrate is an anion, so negatively charged colloids don't hold it, while NH4+ is held on the CEC" },
+        { "id": "C", "text": "Ammonium is a gas", "misconception": "Ammonia (NH3) can be lost as gas. Ammonium stays dissolved or held." },
+        { "id": "D", "text": "Nitrate binds to sand", "misconception": "Sand holds almost nothing." }
+      ],
+      "correct": "B",
+      "explanation": "Most soils carry far more negative than positive charge, so cations like NH4+ are held while NO3- moves freely with draining water."
+    },
+    {
+      "id": "nitrogen-2", "conceptId": "nitrogen", "difficulty": 2, "verified": true,
+      "stem": "What does nitrification (NH4+ → NO3-) do to soil pH?",
+      "options": [
+        { "id": "A", "text": "Raises it", "misconception": "It gets the direction backwards." },
+        { "id": "B", "text": "Nothing", "misconception": "The reaction releases acid." },
+        { "id": "C", "text": "Lowers it, because the reaction releases H+" },
+        { "id": "D", "text": "Only affects pH in waterlogged soils", "misconception": "Nitrification needs oxygen, so it happens in aerated soils." }
+      ],
+      "correct": "C",
+      "explanation": "Converting one NH4+ to NO3- releases two H+. Long-term use of ammonium fertilisers is a major cause of soil acidification."
+    },
+    {
+      "id": "nitrogen-3", "conceptId": "nitrogen", "difficulty": 1, "verified": true,
+      "stem": "Where is denitrification (NO3- → N2O and N2) most likely?",
+      "options": [
+        { "id": "A", "text": "In waterlogged, low-oxygen soil with plenty of available carbon" },
+        { "id": "B", "text": "In dry, well-aerated soil", "misconception": "Denitrifiers only use nitrate once oxygen runs out." },
+        { "id": "C", "text": "Only in frozen soil", "misconception": "Cold slows it down." },
+        { "id": "D", "text": "Only after liming", "misconception": "Lime isn't required." }
+      ],
+      "correct": "A",
+      "explanation": "When O2 is scarce, bacteria use nitrate as their electron acceptor and release N2O and N2. That's lost nitrogen, and N2O is a potent greenhouse gas."
+    },
+    {
+      "id": "nitrogen-4", "conceptId": "nitrogen", "difficulty": 2, "verified": true,
+      "stem": "Urea is spread on the surface of a moist, alkaline soil and not worked in. What's the main risk?",
+      "options": [
+        { "id": "A", "text": "It instantly becomes nitrate and leaches", "misconception": "Urea goes through ammonium first, and that takes time." },
+        { "id": "B", "text": "It binds permanently to clay", "misconception": "Urea is uncharged and isn't held by clay." },
+        { "id": "C", "text": "It's lost straight away by denitrification", "misconception": "Denitrification needs nitrate and low oxygen." },
+        { "id": "D", "text": "It hydrolyses to ammonium and some escapes as ammonia gas" }
+      ],
+      "correct": "D",
+      "explanation": "Urease converts urea to ammonium carbonate, raising the local pH so NH4+ turns into volatile NH3. Working the urea in or watering it in cuts the loss."
+    },
+
+    {
+      "id": "phosphorus-1", "conceptId": "phosphorus", "difficulty": 1, "verified": true,
+      "stem": "At roughly what soil pH is phosphorus most available to plants?",
+      "options": [
+        { "id": "A", "text": "pH 4, because acid dissolves phosphate minerals", "misconception": "Acid soils lock P up with iron and aluminium." },
+        { "id": "B", "text": "pH 9", "misconception": "In alkaline soils, calcium phosphates form." },
+        { "id": "C", "text": "The same at every pH", "misconception": "P availability is very pH-sensitive." },
+        { "id": "D", "text": "pH 6 to 7" }
+      ],
+      "correct": "D",
+      "explanation": "Below about 5.5, iron and aluminium bind phosphate. Above about 7.5, calcium does. The window of best availability sits in between."
+    },
+    {
+      "id": "phosphorus-2", "conceptId": "phosphorus", "difficulty": 2, "verified": true,
+      "stem": "In strongly acid soils, what mainly fixes phosphate?",
+      "options": [
+        { "id": "A", "text": "Iron and aluminium" },
+        { "id": "B", "text": "Calcium", "misconception": "Calcium is the main fixer in alkaline soils." },
+        { "id": "C", "text": "Nitrate", "misconception": "Nitrate doesn't react with phosphate." },
+        { "id": "D", "text": "Sodium", "misconception": "Sodium phosphates are soluble." }
+      ],
+      "correct": "A",
+      "explanation": "Phosphate adsorbs strongly onto Fe and Al oxide surfaces and precipitates as Fe and Al phosphates. Liming towards neutral releases some of it."
+    },
+    {
+      "id": "phosphorus-3", "conceptId": "phosphorus", "difficulty": 2, "verified": true,
+      "stem": "Why does phosphate rarely leach, unlike nitrate?",
+      "options": [
+        { "id": "A", "text": "Phosphate is a cation held on the CEC", "misconception": "Phosphate is an anion." },
+        { "id": "B", "text": "It evaporates first", "misconception": "Phosphate has no common gaseous form in soils." },
+        { "id": "C", "text": "Phosphate binds strongly to minerals and precipitates with Fe, Al and Ca" },
+        { "id": "D", "text": "Plants take all of it up immediately", "misconception": "Most applied P stays in the soil, not the plant." }
+      ],
+      "correct": "C",
+      "explanation": "Phosphate forms strong bonds directly with oxide surfaces (specific adsorption), so it stays close to where it was applied. Most P losses come from erosion instead."
+    },
+    {
+      "id": "phosphorus-4", "conceptId": "phosphorus", "difficulty": 1, "verified": true,
+      "stem": "How does most farm phosphorus reach rivers and lakes?",
+      "options": [
+        { "id": "A", "text": "By leaching through deep soil, like nitrate", "misconception": "P is held too strongly to move like nitrate." },
+        { "id": "B", "text": "By erosion and runoff carrying P attached to soil particles" },
+        { "id": "C", "text": "By volatilising into the air", "misconception": "P has no common gaseous form in soils." },
+        { "id": "D", "text": "By denitrification", "misconception": "That's a nitrogen process." }
+      ],
+      "correct": "B",
+      "explanation": "Because P sticks to soil, it travels with eroded sediment and surface runoff. Keeping soil in place is the main way to protect waterways from algal blooms."
+    },
+
+    {
+      "id": "redox-1", "conceptId": "redox", "difficulty": 2, "verified": true,
+      "stem": "A soil becomes waterlogged. Once the O2 is used up, which is reduced next?",
+      "options": [
+        { "id": "A", "text": "Sulfate", "misconception": "Rotten-egg smells are memorable, but sulfate is reduced much later." },
+        { "id": "B", "text": "Nitrate" },
+        { "id": "C", "text": "Fe3+", "misconception": "Iron comes after nitrate and manganese." },
+        { "id": "D", "text": "CO2", "misconception": "Making methane from CO2 is the very last step." }
+      ],
+      "correct": "B",
+      "explanation": "Microbes use electron acceptors in order of energy yield: O2, then NO3-, Mn(IV), Fe(III), SO4 2- and finally CO2."
+    },
+    {
+      "id": "redox-2", "conceptId": "redox", "difficulty": 2, "verified": true,
+      "stem": "Why are waterlogged subsoil horizons often grey or blue-grey?",
+      "options": [
+        { "id": "A", "text": "Oxidised Fe3+ colours them", "misconception": "Fe3+ gives red, orange and yellow colours." },
+        { "id": "B", "text": "They have salt crusts", "misconception": "Salt crusts are white and form at the surface." },
+        { "id": "C", "text": "Iron is reduced to soluble Fe2+ and moved away, leaving grey colours" },
+        { "id": "D", "text": "They're full of organic matter", "misconception": "Organic matter darkens soil brown or black, not blue-grey." }
+      ],
+      "correct": "C",
+      "explanation": "This is gleying. Reduced iron is mobile and gets stripped out, exposing the grey of the underlying minerals. Rusty mottles mark where it oxidised again."
+    },
+    {
+      "id": "redox-3", "conceptId": "redox", "difficulty": 1, "verified": true,
+      "stem": "A flooded rice paddy smells of rotten eggs. What's producing the smell?",
+      "options": [
+        { "id": "A", "text": "Sulfate being reduced to hydrogen sulfide (H2S)" },
+        { "id": "B", "text": "Nitrate being reduced", "misconception": "That gives N2 and N2O, which are odourless." },
+        { "id": "C", "text": "Methane", "misconception": "Methane is odourless." },
+        { "id": "D", "text": "Ammonia volatilising", "misconception": "Ammonia smells sharp, not eggy." }
+      ],
+      "correct": "A",
+      "explanation": "Under strongly reducing conditions, bacteria use sulfate as an electron acceptor and release H2S. It can also be toxic to rice roots."
+    },
+    {
+      "id": "redox-4", "conceptId": "redox", "difficulty": 3, "verified": true,
+      "stem": "What usually happens to the pH of an acid soil after it has been flooded for a few weeks?",
+      "options": [
+        { "id": "A", "text": "It drops sharply", "misconception": "It gets the direction backwards." },
+        { "id": "B", "text": "It stays the same", "misconception": "Flooding sets off reactions that use up acid." },
+        { "id": "C", "text": "It becomes strongly alkaline, around pH 10", "misconception": "It overshoots. pH settles near neutral." },
+        { "id": "D", "text": "It rises towards neutral, because reduction reactions consume H+" }
+      ],
+      "correct": "D",
+      "explanation": "Reducing Fe(III) and Mn(IV) uses up H+, so acid soils rise towards about pH 6.5 to 7 when flooded. Alkaline soils drift down towards neutral too, as CO2 builds up."
+    },
+
+    {
+      "id": "buffering-1", "conceptId": "buffering", "difficulty": 2, "verified": true,
+      "stem": "Two soils are both at pH 5.0: a sandy soil low in organic matter, and a clay soil high in organic matter. Which needs more lime to reach pH 6.5?",
+      "options": [
+        { "id": "A", "text": "The sandy soil", "misconception": "It holds very little reserve acidity." },
+        { "id": "B", "text": "The same amount, since the pH is the same", "misconception": "pH only shows active acidity." },
+        { "id": "C", "text": "The clay soil high in organic matter" },
+        { "id": "D", "text": "Neither needs lime", "misconception": "Both are well below 6.5." }
+      ],
+      "correct": "C",
+      "explanation": "Clay and humus hold far more reserve acidity, so they buffer harder against pH change. Lime requirement depends on buffer capacity, not on pH alone."
+    },
+    {
+      "id": "buffering-2", "conceptId": "buffering", "difficulty": 2, "verified": true,
+      "stem": "How does agricultural lime (CaCO3) reduce soil acidity?",
+      "options": [
+        { "id": "A", "text": "Carbonate reacts with H+ to make CO2 and water, while Ca2+ replaces exchangeable acidity" },
+        { "id": "B", "text": "Calcium itself neutralises the H+", "misconception": "Ca2+ is a spectator. The carbonate does the neutralising." },
+        { "id": "C", "text": "Lime dries the soil out", "misconception": "Lime doesn't work by changing moisture." },
+        { "id": "D", "text": "Lime adds organic matter", "misconception": "Lime is a mineral." }
+      ],
+      "correct": "A",
+      "explanation": "CO3 2- + 2H+ → CO2 + H2O removes acidity. Ca2+ takes the place of exchangeable Al3+ and H+, which are then neutralised in turn."
+    },
+    {
+      "id": "buffering-3", "conceptId": "buffering", "difficulty": 2, "verified": true,
+      "stem": "Why does soil pH resist change when acid or base is added?",
+      "options": [
+        { "id": "A", "text": "Soil has no ions to react", "misconception": "Soil is full of exchangeable ions." },
+        { "id": "B", "text": "Rain keeps the pH constant", "misconception": "Rain tends to acidify soil over time." },
+        { "id": "C", "text": "Microbes hold the pH exactly fixed", "misconception": "Microbes affect pH but don't hold it fixed." },
+        { "id": "D", "text": "Reserve acidity on colloids resupplies H+ to the solution as it's neutralised" }
+      ],
+      "correct": "D",
+      "explanation": "Exchange sites and pH-dependent surfaces act as a reservoir. Neutralise the solution and more H+ and Al3+ come off the colloids, so pH moves slowly."
+    },
+    {
+      "id": "buffering-4", "conceptId": "buffering", "difficulty": 1, "verified": true,
+      "stem": "A soil is over-limed to pH 8. Which problem becomes more likely?",
+      "options": [
+        { "id": "A", "text": "More aluminium toxicity", "misconception": "Al toxicity is an acid-soil problem." },
+        { "id": "B", "text": "Deficiencies of iron, manganese and zinc" },
+        { "id": "C", "text": "More available nitrogen", "misconception": "High pH can actually increase N loss as ammonia." },
+        { "id": "D", "text": "None, because more lime is always better", "misconception": "There's an optimum range." }
+      ],
+      "correct": "B",
+      "explanation": "At high pH, Fe, Mn and Zn form insoluble oxides and hydroxides, and phosphate binds to calcium. Most crops do best between about pH 6 and 7."
+    },
+
+    {
+      "id": "charge-1", "conceptId": "charge", "difficulty": 3, "verified": true,
+      "stem": "Goethite (an iron oxide) has a point of zero charge around pH 8. At soil pH 5, what is its surface charge?",
+      "options": [
+        { "id": "A", "text": "Positive, so it can hold anions like sulfate and phosphate" },
+        { "id": "B", "text": "Negative, like all soil surfaces", "misconception": "Many oxides are positive below their point of zero charge." },
+        { "id": "C", "text": "Neutral", "misconception": "It's only neutral at about pH 8." },
+        { "id": "D", "text": "It's charged only when salt is added", "misconception": "Its charge comes from H+ gained or lost, which depends on pH." }
+      ],
+      "correct": "A",
+      "explanation": "Below its point of zero charge, a surface picks up extra H+ and becomes positive. That's how acid, oxide-rich soils hold anions."
+    },
+    {
+      "id": "charge-2", "conceptId": "charge", "difficulty": 2, "verified": true,
+      "stem": "Where does variable (pH-dependent) charge come from?",
+      "options": [
+        { "id": "A", "text": "Isomorphous substitution", "misconception": "That makes permanent charge." },
+        { "id": "B", "text": "Dissolved CO2", "misconception": "CO2 affects solution pH but isn't a surface charge." },
+        { "id": "C", "text": "Fertiliser salts", "misconception": "Salts change the soil solution, not where surface charge comes from." },
+        { "id": "D", "text": "Surface OH and COOH groups gaining or losing H+" }
+      ],
+      "correct": "D",
+      "explanation": "Oxide surfaces, clay edges and humus carry groups that gain H+ in acid conditions and lose it in alkaline ones, so their charge shifts with pH."
+    },
+    {
+      "id": "charge-3", "conceptId": "charge", "difficulty": 2, "verified": true,
+      "stem": "The pH of a variable-charge soil is raised from 5 to 6.5. What happens to its CEC?",
+      "options": [
+        { "id": "A", "text": "It decreases", "misconception": "It gets the direction backwards." },
+        { "id": "B", "text": "It increases" },
+        { "id": "C", "text": "It stays the same, because CEC is fixed", "misconception": "Only the permanent-charge part is fixed." },
+        { "id": "D", "text": "It drops to zero", "misconception": "Raising pH adds negative charge." }
+      ],
+      "correct": "B",
+      "explanation": "At higher pH, more surface groups lose H+ and become negative, so the soil can hold more cations. Liming highly weathered soils raises their CEC this way."
+    },
+    {
+      "id": "charge-4", "conceptId": "charge", "difficulty": 2, "verified": true,
+      "stem": "Where is anion exchange capacity (AEC) most important?",
+      "options": [
+        { "id": "A", "text": "In young soils rich in smectite", "misconception": "Smectite carries mainly negative charge." },
+        { "id": "B", "text": "In alkaline sodic soils", "misconception": "At high pH, surfaces are mostly negative." },
+        { "id": "C", "text": "In highly weathered, acid soils rich in iron and aluminium oxides" },
+        { "id": "D", "text": "In sandy soils", "misconception": "Sand has little charge of any sign." }
+      ],
+      "correct": "C",
+      "explanation": "Oxides below their point of zero charge carry positive charge, so acid tropical soils can hold some nitrate, sulfate and chloride. Most temperate soils have little AEC."
+    },
+
+    {
+      "id": "texture-1", "conceptId": "texture", "difficulty": 1, "verified": true,
+      "stem": "Why is clay so much more chemically active than sand?",
+      "options": [
+        { "id": "A", "text": "Clay is made of more reactive elements", "misconception": "Both are mostly Si, Al and O." },
+        { "id": "B", "text": "Clay is always wet", "misconception": "Clay holds water, but that's not why it's chemically active." },
+        { "id": "C", "text": "Sand grains have no surface atoms", "misconception": "They do, just far fewer per gram." },
+        { "id": "D", "text": "Its tiny particles have a huge surface area per gram, and that surface is charged" }
+      ],
+      "correct": "D",
+      "explanation": "Clay particles smaller than 2 µm can have tens to hundreds of m² of surface per gram (smectite up to about 800), against well under 1 m²/g for sand. Soil chemistry happens at surfaces."
+    },
+    {
+      "id": "texture-2", "conceptId": "texture", "difficulty": 1, "verified": true,
+      "stem": "In the USDA system, what is the upper size limit for clay particles?",
+      "options": [
+        { "id": "A", "text": "2 mm", "misconception": "That's the upper limit for sand." },
+        { "id": "B", "text": "0.002 mm (2 µm)" },
+        { "id": "C", "text": "0.05 mm", "misconception": "That's the sand–silt boundary." },
+        { "id": "D", "text": "0.2 mm", "misconception": "That falls inside the sand range." }
+      ],
+      "correct": "B",
+      "explanation": "Sand is 2 to 0.05 mm, silt is 0.05 to 0.002 mm, and clay is anything smaller than 0.002 mm."
+    },
+    {
+      "id": "texture-3", "conceptId": "texture", "difficulty": 1, "verified": true,
+      "stem": "Roughly what CEC does a pure quartz sand have?",
+      "options": [
+        { "id": "A", "text": "Very high, because sand is everywhere", "misconception": "Being common doesn't make it reactive." },
+        { "id": "B", "text": "About the same as clay", "misconception": "Quartz has far less charged surface." },
+        { "id": "C", "text": "Close to zero" },
+        { "id": "D", "text": "Higher than humus", "misconception": "Humus has one of the highest CECs of all." }
+      ],
+      "correct": "C",
+      "explanation": "Quartz has a small surface area and almost no permanent charge, so it holds very few cations. Sandy soils rely on organic matter for their CEC."
+    },
+    {
+      "id": "texture-4", "conceptId": "texture", "difficulty": 2, "verified": true,
+      "stem": "A clay soil holds more total water than a sand. Why isn't all of it available to plants?",
+      "options": [
+        { "id": "A", "text": "Much of it is held so tightly in tiny pores and on surfaces that roots can't pull it out" },
+        { "id": "B", "text": "Clay water is salty", "misconception": "Salinity isn't the general reason." },
+        { "id": "C", "text": "It evaporates instantly", "misconception": "Clay actually loses water slowly." },
+        { "id": "D", "text": "Plants can't grow in clay", "misconception": "Plenty of crops grow well in clay." }
+      ],
+      "correct": "A",
+      "explanation": "Plants can only use water held between field capacity and wilting point. Clays hold a lot of water below the wilting point, so loams often have the most available water."
+    }
+  ]
+}

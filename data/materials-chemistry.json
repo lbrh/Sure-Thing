@@ -1,0 +1,606 @@
+{
+  "unit": { "id": "materials-chemistry", "name": "Materials Chemistry" },
+  "concepts": [
+    { "id": "unitcells", "unitId": "materials-chemistry", "name": "Unit cells and packing", "summary": "Counting atoms per cell, coordination numbers and how tightly spheres pack." },
+    { "id": "doping", "unitId": "materials-chemistry", "name": "Semiconductor doping", "summary": "How a few impurity atoms create n-type and p-type semiconductors." },
+    { "id": "phase", "unitId": "materials-chemistry", "name": "Phase diagrams", "summary": "Reading binary phase diagrams: tie lines, the lever rule, eutectics and the phase rule." },
+    { "id": "miller", "unitId": "materials-chemistry", "name": "Miller indices", "summary": "Naming crystal planes and directions from their intercepts." },
+    { "id": "xrd", "unitId": "materials-chemistry", "name": "X-ray diffraction", "summary": "Bragg's law and what diffraction peaks tell you about a crystal." },
+    { "id": "defects", "unitId": "materials-chemistry", "name": "Point defects", "summary": "Vacancies, interstitials, Schottky and Frenkel defects, and why crystals always have some." },
+    { "id": "ionic", "unitId": "materials-chemistry", "name": "Ionic solids and radius ratios", "summary": "Predicting coordination from ion sizes, and what sets lattice energy." },
+    { "id": "bands", "unitId": "materials-chemistry", "name": "Band theory", "summary": "Why metals conduct, insulators don't, and semiconductors sit in between." },
+    { "id": "diffusion", "unitId": "materials-chemistry", "name": "Diffusion in solids", "summary": "Fick's laws and how temperature and atom size control how fast atoms move." },
+    { "id": "polymers", "unitId": "materials-chemistry", "name": "Polymers", "summary": "Thermoplastics vs thermosets, the glass transition and molecular weight averages." },
+    { "id": "mechanical", "unitId": "materials-chemistry", "name": "Mechanical properties", "summary": "Stress, strain, stiffness, elastic vs plastic, and why some materials are brittle." },
+    { "id": "ceramics", "unitId": "materials-chemistry", "name": "Ceramics and glasses", "summary": "Network structures, network modifiers, and why ceramics hate tension." }
+  ],
+  "questions": [
+    {
+      "id": "unitcells-1", "conceptId": "unitcells", "difficulty": 1, "verified": true,
+      "stem": "How many atoms belong to one face-centred cubic (FCC) unit cell?",
+      "options": [
+        { "id": "A", "text": "14", "misconception": "It counts every corner and face atom as a whole atom: 8 + 6." },
+        { "id": "B", "text": "4" },
+        { "id": "C", "text": "2", "misconception": "That's the count for body-centred cubic." },
+        { "id": "D", "text": "8", "misconception": "It counts only the corners, each as a whole atom." }
+      ],
+      "correct": "B",
+      "explanation": "Each corner atom is shared by 8 cells and each face atom by 2, so 8 × 1/8 + 6 × 1/2 = 4. Counting 14 forgets that neighbouring cells share those atoms."
+    },
+    {
+      "id": "unitcells-2", "conceptId": "unitcells", "difficulty": 1, "verified": true,
+      "stem": "What is the coordination number of an atom in a body-centred cubic (BCC) metal?",
+      "options": [
+        { "id": "A", "text": "12", "misconception": "That's FCC and HCP, the close-packed structures." },
+        { "id": "B", "text": "6", "misconception": "That's simple cubic." },
+        { "id": "C", "text": "8" },
+        { "id": "D", "text": "14", "misconception": "It adds the 6 second-nearest neighbours to the 8 nearest ones." }
+      ],
+      "correct": "C",
+      "explanation": "The body-centre atom touches the 8 corner atoms along the body diagonals, so each atom has 8 nearest neighbours. The 6 atoms in the next cells are slightly further away and don't count."
+    },
+    {
+      "id": "unitcells-3", "conceptId": "unitcells", "difficulty": 2, "verified": true,
+      "stem": "Which has the higher atomic packing factor: FCC or BCC?",
+      "options": [
+        { "id": "A", "text": "BCC, because it has an extra atom in the centre of the cell", "misconception": "An atom in the middle feels fuller, but BCC leaves more empty space overall." },
+        { "id": "B", "text": "They're the same, because both are cubic", "misconception": "Sharing a cubic cell shape doesn't mean the spheres fill it equally." },
+        { "id": "C", "text": "It depends on the atomic radius of the element", "misconception": "For hard spheres the packing factor is pure geometry, so atom size cancels out." },
+        { "id": "D", "text": "FCC: 0.74 vs 0.68 for BCC" }
+      ],
+      "correct": "D",
+      "explanation": "FCC is close-packed with a packing factor of 0.74, the maximum for equal spheres. BCC fills only 0.68 of space. The ratio comes from geometry alone, so it's the same for every element."
+    },
+    {
+      "id": "unitcells-4", "conceptId": "unitcells", "difficulty": 2, "verified": true,
+      "stem": "FCC and HCP both have a packing factor of 0.74 and a coordination number of 12. What makes them different?",
+      "options": [
+        { "id": "A", "text": "How close-packed layers stack: ABCABC for FCC, ABAB for HCP" },
+        { "id": "B", "text": "HCP leaves bigger gaps between atoms", "misconception": "The hexagonal cell looks more open, but both fill exactly 74% of space." },
+        { "id": "C", "text": "FCC has a lower coordination number", "misconception": "Both are close-packed, so both have 12 neighbours." },
+        { "id": "D", "text": "HCP isn't actually close-packed", "misconception": "The 'close-packed' in the name is accurate. Both are." }
+      ],
+      "correct": "A",
+      "explanation": "Both are built from identical close-packed layers. FCC puts every third layer in a new position (ABC), while HCP repeats every second layer (AB). Same density, different symmetry."
+    },
+
+    {
+      "id": "doping-1", "conceptId": "doping", "difficulty": 1, "verified": true,
+      "stem": "Silicon is doped with a small amount of phosphorus. What kind of semiconductor results?",
+      "options": [
+        { "id": "A", "text": "p-type", "misconception": "P for phosphorus feels like p for p-type." },
+        { "id": "B", "text": "n-type" },
+        { "id": "C", "text": "Intrinsic", "misconception": "It assumes a small amount of dopant changes nothing." },
+        { "id": "D", "text": "An insulator", "misconception": "It thinks impurities always block conduction." }
+      ],
+      "correct": "B",
+      "explanation": "Phosphorus is in group 15, so it has one more valence electron than silicon. That spare electron is easily freed into the conduction band, giving negative carriers: n-type. The letter P is a coincidence."
+    },
+    {
+      "id": "doping-2", "conceptId": "doping", "difficulty": 1, "verified": true,
+      "stem": "Silicon is doped with boron. What does this create?",
+      "options": [
+        { "id": "A", "text": "Extra free electrons, so n-type", "misconception": "It assumes any dopant adds electrons." },
+        { "id": "B", "text": "No change, because boron atoms are too small to matter", "misconception": "Size isn't the point. The number of valence electrons is." },
+        { "id": "C", "text": "Holes, so p-type" },
+        { "id": "D", "text": "A metal", "misconception": "Doping adds carriers but doesn't close the band gap." }
+      ],
+      "correct": "C",
+      "explanation": "Boron is in group 13, with one fewer valence electron than silicon. Each boron leaves a missing bond, a hole, that acts as a positive carrier. That's p-type."
+    },
+    {
+      "id": "doping-3", "conceptId": "doping", "difficulty": 2, "verified": true,
+      "stem": "In n-type silicon at room temperature, what are the majority charge carriers?",
+      "options": [
+        { "id": "A", "text": "Holes", "misconception": "It mixes up majority and minority carriers." },
+        { "id": "B", "text": "Equal numbers of electrons and holes", "misconception": "That's only true for an intrinsic semiconductor." },
+        { "id": "C", "text": "The phosphorus ions", "misconception": "Donor ions are fixed in the lattice and can't carry current." },
+        { "id": "D", "text": "Electrons" }
+      ],
+      "correct": "D",
+      "explanation": "Donors release electrons into the conduction band, so electrons far outnumber holes. Holes are still present as minority carriers. The ionised donors stay put in the lattice."
+    },
+    {
+      "id": "doping-4", "conceptId": "doping", "difficulty": 3, "verified": true,
+      "stem": "Does doping make an n-type semiconductor negatively charged overall?",
+      "options": [
+        { "id": "A", "text": "No. Each free electron is balanced by a fixed positive donor ion" },
+        { "id": "B", "text": "Yes, because it has extra electrons", "misconception": "It forgets that each donor atom also became a positive ion." },
+        { "id": "C", "text": "Only while a current is flowing", "misconception": "Current moves charge through the material but doesn't build up net charge." },
+        { "id": "D", "text": "No, because the extra electrons leave the crystal", "misconception": "The electrons stay in the crystal. They're just free to move." }
+      ],
+      "correct": "A",
+      "explanation": "Phosphorus atoms are neutral when added. When one gives up an electron, it becomes P+ fixed in the lattice. Free electrons plus fixed positive ions add up to zero net charge."
+    },
+
+    {
+      "id": "phase-1", "conceptId": "phase", "difficulty": 2, "verified": true,
+      "stem": "For a binary alloy at constant pressure, how many degrees of freedom are there at the eutectic point, where liquid, α and β coexist?",
+      "options": [
+        { "id": "A", "text": "1", "misconception": "It uses F = C − P + 2, forgetting that pressure is already fixed." },
+        { "id": "B", "text": "0" },
+        { "id": "C", "text": "2", "misconception": "It counts the two components as the answer." },
+        { "id": "D", "text": "3", "misconception": "It counts the three phases as the answer." }
+      ],
+      "correct": "B",
+      "explanation": "At constant pressure the phase rule is F = C − P + 1. With 2 components and 3 phases, F = 0: the eutectic happens at one fixed temperature and composition."
+    },
+    {
+      "id": "phase-2", "conceptId": "phase", "difficulty": 2, "verified": true,
+      "stem": "An alloy with 40 wt% B sits in an α + liquid region. The tie line ends at α = 10 wt% B and liquid = 50 wt% B.\nWhat fraction of the alloy is liquid?",
+      "options": [
+        { "id": "A", "text": "0.25", "misconception": "It uses the arm next to the liquid instead of the opposite arm, which inverts the lever." },
+        { "id": "B", "text": "0.40", "misconception": "It mistakes the overall composition for the phase fraction." },
+        { "id": "C", "text": "0.75" },
+        { "id": "D", "text": "0.50", "misconception": "It assumes two phases split the alloy evenly." }
+      ],
+      "correct": "C",
+      "explanation": "Lever rule: fraction liquid = (C0 − Cα) / (CL − Cα) = (40 − 10) / (50 − 10) = 0.75. The phase you're nearer to on the tie line is the one you have more of."
+    },
+    {
+      "id": "phase-3", "conceptId": "phase", "difficulty": 1, "verified": true,
+      "stem": "How does an alloy of exactly eutectic composition melt?",
+      "options": [
+        { "id": "A", "text": "Over a range of temperatures, like other alloys", "misconception": "It assumes every alloy has a mushy melting range." },
+        { "id": "B", "text": "At the average of the two pure melting points", "misconception": "It treats mixing as a simple average." },
+        { "id": "C", "text": "At a temperature above both pure components", "misconception": "It gets the direction of the dip backwards." },
+        { "id": "D", "text": "At a single temperature, lower than either pure component" }
+      ],
+      "correct": "D",
+      "explanation": "The eutectic is the lowest point of the liquidus, where liquid turns into two solids at once at one fixed temperature. That's why solders sit at or near eutectic compositions."
+    },
+    {
+      "id": "phase-4", "conceptId": "phase", "difficulty": 2, "verified": true,
+      "stem": "In a two-phase region of a binary phase diagram, what tells you the composition of each phase?",
+      "options": [
+        { "id": "A", "text": "The lever rule", "misconception": "The lever rule gives how much of each phase, not what each phase is made of." },
+        { "id": "B", "text": "The ends of the tie line at that temperature" },
+        { "id": "C", "text": "The overall alloy composition", "misconception": "It assumes both phases have the same makeup as the whole alloy." },
+        { "id": "D", "text": "The eutectic composition, always", "misconception": "That only applies at the eutectic point itself." }
+      ],
+      "correct": "B",
+      "explanation": "Draw a horizontal tie line across the two-phase region. Where it meets the phase boundaries gives each phase's composition. Then use the lever rule for the amounts."
+    },
+
+    {
+      "id": "miller-1", "conceptId": "miller", "difficulty": 1, "verified": true,
+      "stem": "A plane cuts the axes at x = 1, y = 2 and never meets z (z = ∞).\nWhat are its Miller indices?",
+      "options": [
+        { "id": "A", "text": "(1 2 0)", "misconception": "It uses the intercepts directly instead of their reciprocals." },
+        { "id": "B", "text": "(2 1 0)" },
+        { "id": "C", "text": "(1 2 ∞)", "misconception": "It writes the intercepts, infinity included." },
+        { "id": "D", "text": "(1 ½ 0)", "misconception": "Right reciprocals, but it forgets to clear the fraction." }
+      ],
+      "correct": "B",
+      "explanation": "Take reciprocals of the intercepts: 1, 1/2, 1/∞ = 0. Multiply through to clear fractions: (2 1 0). Taking reciprocals is the step people skip."
+    },
+    {
+      "id": "miller-2", "conceptId": "miller", "difficulty": 1, "verified": true,
+      "stem": "A plane is parallel to the x-axis. What is its h index?",
+      "options": [
+        { "id": "A", "text": "∞", "misconception": "It writes the intercept rather than its reciprocal." },
+        { "id": "B", "text": "1", "misconception": "It assumes every axis contributes a 1." },
+        { "id": "C", "text": "0" },
+        { "id": "D", "text": "Undefined", "misconception": "It gets stuck on dividing by infinity." }
+      ],
+      "correct": "C",
+      "explanation": "A plane parallel to an axis meets it at infinity, and the reciprocal of infinity is 0. So any 0 in a Miller index means the plane is parallel to that axis."
+    },
+    {
+      "id": "miller-3", "conceptId": "miller", "difficulty": 2, "verified": true,
+      "stem": "In a cubic crystal, how is the [hkl] direction related to the (hkl) plane?",
+      "options": [
+        { "id": "A", "text": "It lies within the plane", "misconception": "Matching numbers feels like 'same orientation'." },
+        { "id": "B", "text": "It's at 45° to the plane", "misconception": "It guesses a fixed angle." },
+        { "id": "C", "text": "There's no fixed relationship", "misconception": "That's true for some non-cubic systems, but not cubic ones." },
+        { "id": "D", "text": "It's perpendicular to the plane" }
+      ],
+      "correct": "D",
+      "explanation": "In cubic systems the [hkl] direction is the normal to the (hkl) plane. This handy shortcut doesn't hold in general for non-cubic crystals."
+    },
+    {
+      "id": "miller-4", "conceptId": "miller", "difficulty": 2, "verified": true,
+      "stem": "A cubic crystal has lattice parameter a. What is the spacing between (110) planes?",
+      "options": [
+        { "id": "A", "text": "a√2", "misconception": "It multiplies by the root instead of dividing." },
+        { "id": "B", "text": "a/2", "misconception": "It divides by h + k + l instead of the square root of the sum of squares." },
+        { "id": "C", "text": "a/√2" },
+        { "id": "D", "text": "a", "misconception": "It assumes all planes are one lattice parameter apart." }
+      ],
+      "correct": "C",
+      "explanation": "For cubic crystals d = a / √(h² + k² + l²). For (110) that's a / √2. Higher indices mean more closely spaced planes."
+    },
+
+    {
+      "id": "xrd-1", "conceptId": "xrd", "difficulty": 1, "verified": true,
+      "stem": "In Bragg's law, nλ = 2d sin θ, what is θ?",
+      "options": [
+        { "id": "A", "text": "The angle between the incident and diffracted beams", "misconception": "That's 2θ, which is what the instrument plots." },
+        { "id": "B", "text": "The angle between the incident beam and the diffracting planes" },
+        { "id": "C", "text": "The angle between the incident beam and the plane normal", "misconception": "Optics usually measures from the normal, but Bragg measures from the planes." },
+        { "id": "D", "text": "The tilt of the sample holder", "misconception": "It confuses the instrument setting with the geometry of the planes." }
+      ],
+      "correct": "B",
+      "explanation": "θ is the glancing angle between the beam and the lattice planes. The beam is deflected by 2θ in total, which is why diffraction patterns are plotted against 2θ."
+    },
+    {
+      "id": "xrd-2", "conceptId": "xrd", "difficulty": 2, "verified": true,
+      "stem": "At a fixed X-ray wavelength, the d-spacing of a set of planes gets smaller. Where does its peak move?",
+      "options": [
+        { "id": "A", "text": "To a higher 2θ" },
+        { "id": "B", "text": "To a lower 2θ", "misconception": "It assumes θ is proportional to d." },
+        { "id": "C", "text": "It doesn't move", "misconception": "It assumes peak position depends only on the wavelength." },
+        { "id": "D", "text": "It disappears", "misconception": "Smaller spacings still diffract, just at a different angle." }
+      ],
+      "correct": "A",
+      "explanation": "Rearranging Bragg's law gives sin θ = nλ / 2d. Smaller d means larger sin θ, so the peak shifts to a higher angle. That's how lattice contraction shows up in a pattern."
+    },
+    {
+      "id": "xrd-3", "conceptId": "xrd", "difficulty": 2, "verified": true,
+      "stem": "Nanoparticle samples give much broader XRD peaks than bulk powder. What does the broadening mainly tell you?",
+      "options": [
+        { "id": "A", "text": "The lattice parameter is larger", "misconception": "That would shift peaks, not broaden them." },
+        { "id": "B", "text": "The sample is more crystalline", "misconception": "It's the other way round. Sharp peaks mean large, well-ordered crystals." },
+        { "id": "C", "text": "The crystallites are very small" },
+        { "id": "D", "text": "The X-ray source is more intense", "misconception": "Intensity changes peak height, not width." }
+      ],
+      "correct": "C",
+      "explanation": "Small crystallites have few planes to interfere, so the diffraction condition is less sharp and peaks broaden. The Scherrer equation turns peak width into a crystallite size estimate."
+    },
+    {
+      "id": "xrd-4", "conceptId": "xrd", "difficulty": 1, "verified": true,
+      "stem": "Why do we use X-rays rather than visible light to study crystal structures?",
+      "options": [
+        { "id": "A", "text": "X-rays can penetrate the sample to see inside", "misconception": "Penetration helps, but diffraction needs a matching wavelength." },
+        { "id": "B", "text": "Crystals absorb all visible light", "misconception": "Plenty of crystals are transparent." },
+        { "id": "C", "text": "X-rays push atoms into ordered positions", "misconception": "The radiation probes the structure. It doesn't create it." },
+        { "id": "D", "text": "Their wavelength (~1 Å) is similar to the spacing between atoms" }
+      ],
+      "correct": "D",
+      "explanation": "Diffraction is strongest when the wavelength is comparable to the spacing of the scatterers. Visible light (~500 nm) is thousands of times too long to resolve planes about 0.1 to 0.3 nm apart."
+    },
+
+    {
+      "id": "defects-1", "conceptId": "defects", "difficulty": 1, "verified": true,
+      "stem": "What is a Schottky defect in NaCl?",
+      "options": [
+        { "id": "A", "text": "A Na+ ion moved from its site into an interstitial site", "misconception": "That describes a Frenkel defect." },
+        { "id": "B", "text": "A single missing Na+ ion", "misconception": "It forgets the crystal must stay charge neutral." },
+        { "id": "C", "text": "A pair of vacancies: one missing Na+ and one missing Cl−" },
+        { "id": "D", "text": "A foreign atom replacing Na+", "misconception": "That's a substitutional impurity." }
+      ],
+      "correct": "C",
+      "explanation": "A Schottky defect removes a cation and an anion together, so the crystal stays neutral. A Frenkel defect instead moves one ion into an interstitial site, leaving a vacancy behind."
+    },
+    {
+      "id": "defects-2", "conceptId": "defects", "difficulty": 2, "verified": true,
+      "stem": "Which type of point defect lowers the density of an ionic crystal?",
+      "options": [
+        { "id": "A", "text": "Frenkel", "misconception": "It assumes any vacancy lowers the density." },
+        { "id": "B", "text": "Schottky" },
+        { "id": "C", "text": "Both, equally", "misconception": "It misses that Frenkel ions are still inside the crystal." },
+        { "id": "D", "text": "Neither", "misconception": "It assumes defects are too rare to change anything." }
+      ],
+      "correct": "B",
+      "explanation": "Schottky defects remove ions from the crystal entirely, so the mass drops while the volume stays about the same. Frenkel defects only move an ion to an interstitial site, so the mass is unchanged."
+    },
+    {
+      "id": "defects-3", "conceptId": "defects", "difficulty": 2, "verified": true,
+      "stem": "How does the equilibrium number of vacancies in a metal change as temperature rises?",
+      "options": [
+        { "id": "A", "text": "It decreases, because heat lets the crystal order itself", "misconception": "It confuses annealing out excess defects with the equilibrium number." },
+        { "id": "B", "text": "It increases exponentially" },
+        { "id": "C", "text": "It stays at zero, because a perfect crystal is the equilibrium state", "misconception": "It forgets that entropy makes some vacancies favourable." },
+        { "id": "D", "text": "It increases linearly", "misconception": "It misses the Arrhenius form." }
+      ],
+      "correct": "B",
+      "explanation": "The vacancy fraction follows n/N = exp(−Qv / kT), so it rises exponentially with temperature. Near the melting point roughly 1 site in 10,000 can be vacant."
+    },
+    {
+      "id": "defects-4", "conceptId": "defects", "difficulty": 3, "verified": true,
+      "stem": "Why does a crystal in equilibrium above 0 K always contain some vacancies?",
+      "options": [
+        { "id": "A", "text": "Impurities always create them", "misconception": "Even a perfectly pure crystal has vacancies." },
+        { "id": "B", "text": "Crystals always cool too quickly to remove them", "misconception": "That describes extra trapped vacancies, not the equilibrium number." },
+        { "id": "C", "text": "Vacancies lower the enthalpy of the crystal", "misconception": "Making a vacancy costs energy. It raises the enthalpy." },
+        { "id": "D", "text": "The entropy gained from a few vacancies outweighs their energy cost, which lowers G" }
+      ],
+      "correct": "D",
+      "explanation": "Each vacancy costs energy, but there are many ways to arrange a few vacancies, which adds configurational entropy. The free energy G = H − TS is lowest at a small, nonzero vacancy concentration."
+    },
+
+    {
+      "id": "ionic-1", "conceptId": "ionic", "difficulty": 1, "verified": true,
+      "stem": "In the rock salt (NaCl) structure, what is the coordination number of Na+?",
+      "options": [
+        { "id": "A", "text": "8", "misconception": "That's the CsCl structure." },
+        { "id": "B", "text": "4", "misconception": "That's zinc blende (ZnS)." },
+        { "id": "C", "text": "6" },
+        { "id": "D", "text": "12", "misconception": "That's a close-packed metal, not an ionic solid." }
+      ],
+      "correct": "C",
+      "explanation": "Each Na+ sits in an octahedral hole surrounded by 6 Cl−, and each Cl− is surrounded by 6 Na+. Rock salt is 6:6 coordination."
+    },
+    {
+      "id": "ionic-2", "conceptId": "ionic", "difficulty": 2, "verified": true,
+      "stem": "An ionic compound has a radius ratio r+/r− of 0.75. What coordination number do the radius ratio rules predict for the cation?",
+      "options": [
+        { "id": "A", "text": "6", "misconception": "It assumes most ionic solids are rock salt." },
+        { "id": "B", "text": "8" },
+        { "id": "C", "text": "4", "misconception": "That range is 0.225 to 0.414." },
+        { "id": "D", "text": "12", "misconception": "Ionic solids top out at cubic (8) coordination for ratios below 1." }
+      ],
+      "correct": "B",
+      "explanation": "Rough ranges: 0.225 to 0.414 tetrahedral (4), 0.414 to 0.732 octahedral (6), 0.732 to 1 cubic (8). At 0.75 the cation is big enough for 8 anions. These are guidelines, and real structures sometimes break them."
+    },
+    {
+      "id": "ionic-3", "conceptId": "ionic", "difficulty": 2, "verified": true,
+      "stem": "Why does a larger cation tend to have a higher coordination number?",
+      "options": [
+        { "id": "A", "text": "Larger cations have a higher charge", "misconception": "Size and charge are separate properties." },
+        { "id": "B", "text": "Larger cations are more covalent", "misconception": "Covalency usually lowers coordination." },
+        { "id": "C", "text": "Only the cation's size matters, not the anion's", "misconception": "It's the ratio of the two radii that matters." },
+        { "id": "D", "text": "More anions can fit around it while each still touches the cation" }
+      ],
+      "correct": "D",
+      "explanation": "A stable arrangement needs the anions to touch the cation without crowding each other. A bigger cation has more surface area, so more anions fit around it before they collide."
+    },
+    {
+      "id": "ionic-4", "conceptId": "ionic", "difficulty": 2, "verified": true,
+      "stem": "Which has the larger lattice energy: MgO or NaCl? (Both have the rock salt structure.)",
+      "options": [
+        { "id": "A", "text": "NaCl, because Na and Cl are bigger ions", "misconception": "Bigger ions are further apart, which weakens the attraction." },
+        { "id": "B", "text": "About the same, because they share a structure", "misconception": "Same geometry, but very different charges." },
+        { "id": "C", "text": "MgO, because of the higher ion charges and smaller ions" },
+        { "id": "D", "text": "You can't tell without more data", "misconception": "Charge and size alone are enough to decide." }
+      ],
+      "correct": "C",
+      "explanation": "Lattice energy scales roughly with (z+ × z−) / (r+ + r−). MgO has 2+ and 2− ions that are also smaller, so its lattice energy is roughly five times larger (about 3,800 vs 790 kJ/mol). That's why MgO melts near 2,850 °C and NaCl at 801 °C."
+    },
+
+    {
+      "id": "bands-1", "conceptId": "bands", "difficulty": 1, "verified": true,
+      "stem": "Silicon and diamond have the same crystal structure. Why is silicon a semiconductor while diamond is an insulator?",
+      "options": [
+        { "id": "A", "text": "Carbon has fewer valence electrons than silicon", "misconception": "Both are in group 14 with 4 valence electrons." },
+        { "id": "B", "text": "Diamond's band gap (~5.5 eV) is much larger than silicon's (~1.1 eV)" },
+        { "id": "C", "text": "Silicon is a metal at room temperature", "misconception": "Silicon has a band gap. It just isn't very large." },
+        { "id": "D", "text": "Diamond's bonds are ionic", "misconception": "Diamond is the classic covalent network solid." }
+      ],
+      "correct": "B",
+      "explanation": "Both have filled valence bands. At room temperature, enough electrons cross silicon's 1.1 eV gap to conduct a little, but almost none cross diamond's 5.5 eV gap."
+    },
+    {
+      "id": "bands-2", "conceptId": "bands", "difficulty": 1, "verified": true,
+      "stem": "What happens to the electrical conductivity of an intrinsic semiconductor when it is heated?",
+      "options": [
+        { "id": "A", "text": "It decreases, like a metal's", "misconception": "It applies the metal rule to every conductor." },
+        { "id": "B", "text": "It stays the same, because the band gap is fixed", "misconception": "The gap is fixed, but more electrons get enough energy to cross it." },
+        { "id": "C", "text": "It increases" },
+        { "id": "D", "text": "It changes only if the material is doped", "misconception": "Intrinsic carriers are created thermally too." }
+      ],
+      "correct": "C",
+      "explanation": "Heating excites more electrons across the gap, creating more electrons and holes, so conductivity rises steeply. Metals go the other way, because extra vibrations scatter their electrons."
+    },
+    {
+      "id": "bands-3", "conceptId": "bands", "difficulty": 2, "verified": true,
+      "stem": "Where is the Fermi level in a metal?",
+      "options": [
+        { "id": "A", "text": "Inside a partly filled band" },
+        { "id": "B", "text": "In the middle of a band gap", "misconception": "That's an intrinsic semiconductor." },
+        { "id": "C", "text": "Above the top of the conduction band", "misconception": "It imagines the Fermi level as a ceiling above all the bands." },
+        { "id": "D", "text": "At the bottom of the valence band", "misconception": "The Fermi level marks the top of the filled states, not the bottom." }
+      ],
+      "correct": "A",
+      "explanation": "A metal's highest occupied band is only partly filled, so empty states sit right above the Fermi level. A tiny push moves electrons into them, which is why metals conduct."
+    },
+    {
+      "id": "bands-4", "conceptId": "bands", "difficulty": 3, "verified": true,
+      "stem": "TiO2 has a band gap of about 3.2 eV. Which light can excite electrons across its gap?",
+      "options": [
+        { "id": "A", "text": "Only infrared light", "misconception": "It inverts the energy and wavelength relationship." },
+        { "id": "B", "text": "All visible light", "misconception": "Visible photons (~1.8 to 3.1 eV) carry too little energy." },
+        { "id": "C", "text": "Any light, if it's bright enough", "misconception": "Each photon needs enough energy. More photons don't add up." },
+        { "id": "D", "text": "Only ultraviolet light, below about 390 nm" }
+      ],
+      "correct": "D",
+      "explanation": "λ (nm) ≈ 1240 / E (eV) = 1240 / 3.2 ≈ 390 nm, so only UV photons have enough energy. That's why TiO2 looks white and is used in sunscreen and UV photocatalysts."
+    },
+
+    {
+      "id": "diffusion-1", "conceptId": "diffusion", "difficulty": 1, "verified": true,
+      "stem": "Fick's first law is J = −D (dC/dx). Which way does the net flux of atoms go?",
+      "options": [
+        { "id": "A", "text": "From low concentration to high concentration", "misconception": "It ignores the minus sign." },
+        { "id": "B", "text": "From high concentration to low concentration" },
+        { "id": "C", "text": "Towards hotter regions", "misconception": "Temperature changes D, but the flux still follows the concentration gradient." },
+        { "id": "D", "text": "Nowhere, because atoms don't move in solids", "misconception": "Atoms in solids do hop between sites, just slowly." }
+      ],
+      "correct": "B",
+      "explanation": "The minus sign means flux runs down the concentration gradient, from high to low. Random hops even out differences over time."
+    },
+    {
+      "id": "diffusion-2", "conceptId": "diffusion", "difficulty": 1, "verified": true,
+      "stem": "The diffusion coefficient follows D = D0 exp(−Q / RT). What happens to D as temperature rises?",
+      "options": [
+        { "id": "A", "text": "It increases exponentially" },
+        { "id": "B", "text": "It increases linearly", "misconception": "It misses the Arrhenius form." },
+        { "id": "C", "text": "It decreases", "misconception": "It misreads the minus sign in the exponent." },
+        { "id": "D", "text": "It doesn't change, because D is a material constant", "misconception": "D depends strongly on temperature." }
+      ],
+      "correct": "A",
+      "explanation": "Higher T makes −Q/RT less negative, so D rises exponentially. A few hundred degrees can change D by orders of magnitude, which is why heat treatments work."
+    },
+    {
+      "id": "diffusion-3", "conceptId": "diffusion", "difficulty": 2, "verified": true,
+      "stem": "Which diffuses faster through iron: carbon or nickel?",
+      "options": [
+        { "id": "A", "text": "Nickel, because it's similar in size to iron", "misconception": "Similar size suits substitution, but substitution needs vacancies, which is slow." },
+        { "id": "B", "text": "They diffuse at the same rate", "misconception": "It assumes all solutes move alike." },
+        { "id": "C", "text": "Carbon, because small interstitial atoms don't need vacancies to move" },
+        { "id": "D", "text": "Neither diffuses in solid iron", "misconception": "Both do. Carburising steel relies on it." }
+      ],
+      "correct": "C",
+      "explanation": "Carbon sits in interstitial gaps and can hop to a neighbouring gap almost any time. Nickel replaces iron atoms and can only move when a vacancy is next to it, so it's far slower."
+    },
+    {
+      "id": "diffusion-4", "conceptId": "diffusion", "difficulty": 2, "verified": true,
+      "stem": "When do you need Fick's second law rather than the first?",
+      "options": [
+        { "id": "A", "text": "When the concentration profile is steady", "misconception": "Steady state is the first law's job." },
+        { "id": "B", "text": "Only for gases", "misconception": "Both laws apply to solids, liquids and gases." },
+        { "id": "C", "text": "Only at equilibrium", "misconception": "At equilibrium there's no gradient, so nothing to solve." },
+        { "id": "D", "text": "When concentration at a point changes with time" }
+      ],
+      "correct": "D",
+      "explanation": "The second law, ∂C/∂t = D ∂²C/∂x², describes non-steady diffusion, such as carbon soaking into a steel surface. The first law covers steady flux through, for example, a membrane."
+    },
+
+    {
+      "id": "polymers-1", "conceptId": "polymers", "difficulty": 1, "verified": true,
+      "stem": "What is the key difference between a thermoplastic and a thermoset?",
+      "options": [
+        { "id": "A", "text": "Thermosets melt at lower temperatures", "misconception": "Thermosets don't melt at all. They decompose." },
+        { "id": "B", "text": "Thermoplastics are crosslinked", "misconception": "It swaps the two." },
+        { "id": "C", "text": "Thermoplastics soften and can be remoulded; thermosets are crosslinked and can't" },
+        { "id": "D", "text": "Only the processing temperature is different", "misconception": "The difference is structural, not just a setting." }
+      ],
+      "correct": "C",
+      "explanation": "Thermoplastic chains are held together by weak forces that heat can overcome, so they can be remelted and reshaped. Thermosets form a covalent crosslinked network that chars instead of melting."
+    },
+    {
+      "id": "polymers-2", "conceptId": "polymers", "difficulty": 2, "verified": true,
+      "stem": "An amorphous polymer is heated above its glass transition temperature, Tg. What is it like?",
+      "options": [
+        { "id": "A", "text": "Rubbery or leathery, because chain segments can move" },
+        { "id": "B", "text": "A liquid melt", "misconception": "It confuses Tg with the melting point Tm." },
+        { "id": "C", "text": "Glassy and brittle", "misconception": "That's below Tg." },
+        { "id": "D", "text": "More crystalline", "misconception": "Tg is about chain mobility, not crystallisation." }
+      ],
+      "correct": "A",
+      "explanation": "Below Tg, chain segments are frozen and the polymer is stiff and glassy. Above Tg they can wiggle, so it turns rubbery. Melting into a flowing liquid needs higher temperatures still."
+    },
+    {
+      "id": "polymers-3", "conceptId": "polymers", "difficulty": 2, "verified": true,
+      "stem": "For a polymer sample with a spread of chain lengths, how does the weight-average molecular weight (Mw) compare with the number-average (Mn)?",
+      "options": [
+        { "id": "A", "text": "Mn is greater than Mw", "misconception": "It swaps the two averages." },
+        { "id": "B", "text": "Mw is greater than Mn" },
+        { "id": "C", "text": "They are always equal", "misconception": "That's only true when every chain is the same length." },
+        { "id": "D", "text": "They can't be compared because they use different units", "misconception": "Both are in g/mol." }
+      ],
+      "correct": "B",
+      "explanation": "Mw weights each chain by its mass, so long chains count more and pull the average up. The dispersity Mw/Mn is above 1 for any real sample with a spread of lengths."
+    },
+    {
+      "id": "polymers-4", "conceptId": "polymers", "difficulty": 2, "verified": true,
+      "stem": "What does increasing the crosslinking in a rubber (as in vulcanisation) do?",
+      "options": [
+        { "id": "A", "text": "Makes it dissolve more easily", "misconception": "Crosslinks tie chains together, which makes dissolving harder." },
+        { "id": "B", "text": "Makes it melt at a lower temperature", "misconception": "Crosslinked networks don't melt." },
+        { "id": "C", "text": "Nothing to its mechanical properties", "misconception": "Crosslinking is the main lever on rubber stiffness." },
+        { "id": "D", "text": "Makes it stiffer and less stretchy" }
+      ],
+      "correct": "D",
+      "explanation": "Crosslinks stop chains sliding past each other and shorten the free chain length between ties. A lightly crosslinked rubber stretches a lot; a heavily crosslinked one is stiff and hard."
+    },
+
+    {
+      "id": "mechanical-1", "conceptId": "mechanical", "difficulty": 1, "verified": true,
+      "stem": "What is Young's modulus?",
+      "options": [
+        { "id": "A", "text": "The maximum stress before the material fails", "misconception": "That's the ultimate tensile strength." },
+        { "id": "B", "text": "The stress at which permanent deformation begins", "misconception": "That's the yield strength." },
+        { "id": "C", "text": "The slope of the linear, elastic part of the stress–strain curve" },
+        { "id": "D", "text": "The area under the stress–strain curve", "misconception": "That's toughness." }
+      ],
+      "correct": "C",
+      "explanation": "Young's modulus E = stress / strain in the elastic region. It measures stiffness: how much stress you need for a given stretch. Strength and stiffness are different things."
+    },
+    {
+      "id": "mechanical-2", "conceptId": "mechanical", "difficulty": 1, "verified": true,
+      "stem": "A metal bar is loaded to below its yield strength, then unloaded. What happens?",
+      "options": [
+        { "id": "A", "text": "It returns to its original length" },
+        { "id": "B", "text": "It stays permanently stretched", "misconception": "It assumes any load leaves a mark." },
+        { "id": "C", "text": "It keeps about half the stretch", "misconception": "It imagines partial recovery." },
+        { "id": "D", "text": "It fractures", "misconception": "Fracture needs much higher stress." }
+      ],
+      "correct": "A",
+      "explanation": "Below the yield point, deformation is elastic: bonds stretch but no atoms slip past each other, so the bar springs back. Permanent (plastic) deformation only starts beyond yield."
+    },
+    {
+      "id": "mechanical-3", "conceptId": "mechanical", "difficulty": 1, "verified": true,
+      "stem": "How is engineering strain defined?",
+      "options": [
+        { "id": "A", "text": "Force divided by area", "misconception": "That's stress." },
+        { "id": "B", "text": "The change in length, in mm", "misconception": "It forgets to divide by the original length." },
+        { "id": "C", "text": "Stress multiplied by Young's modulus", "misconception": "Strain is stress divided by E, not multiplied." },
+        { "id": "D", "text": "The change in length divided by the original length (ΔL/L0)" }
+      ],
+      "correct": "D",
+      "explanation": "Strain is a dimensionless ratio, so a 2 mm stretch means very different things for a 10 mm wire and a 10 m cable. Stress is the force per area that causes it."
+    },
+    {
+      "id": "mechanical-4", "conceptId": "mechanical", "difficulty": 2, "verified": true,
+      "stem": "Why are most ceramics brittle while most metals are ductile?",
+      "options": [
+        { "id": "A", "text": "Ceramics have weak bonds", "misconception": "Ceramic bonds are among the strongest there are." },
+        { "id": "B", "text": "In ceramics dislocations can barely move, so cracks grow before the material can deform plastically" },
+        { "id": "C", "text": "Ceramics are always amorphous", "misconception": "Most ceramics are crystalline." },
+        { "id": "D", "text": "Ceramics are less dense", "misconception": "Density doesn't decide ductility." }
+      ],
+      "correct": "B",
+      "explanation": "Metals deform plastically as dislocations glide through non-directional metallic bonding. In ionic and covalent ceramics, slip is hard: it would push like charges together or break directional bonds. So stress concentrates at cracks instead."
+    },
+
+    {
+      "id": "ceramics-1", "conceptId": "ceramics", "difficulty": 1, "verified": true,
+      "stem": "How does silica glass differ from quartz?",
+      "options": [
+        { "id": "A", "text": "Quartz is pure silicon", "misconception": "Both are SiO2." },
+        { "id": "B", "text": "Both are built from SiO4 tetrahedra, but glass has no long-range order" },
+        { "id": "C", "text": "Glass is a liquid that slowly flows over centuries", "misconception": "Old windows are thicker at the bottom because of how they were made, not because glass flows." },
+        { "id": "D", "text": "Glass has no Si–O bonds", "misconception": "Glass has the same Si–O bonds, just arranged randomly." }
+      ],
+      "correct": "B",
+      "explanation": "Quartz repeats its SiO4 network in a regular pattern. Glass has the same tetrahedra joined at random angles, so it's an amorphous solid. At room temperature it doesn't measurably flow."
+    },
+    {
+      "id": "ceramics-2", "conceptId": "ceramics", "difficulty": 2, "verified": true,
+      "stem": "What does adding Na2O to silica glass do?",
+      "options": [
+        { "id": "A", "text": "Breaks Si–O–Si bridges, which lowers the softening temperature" },
+        { "id": "B", "text": "Strengthens the network and raises the melting point", "misconception": "It sounds like adding stuff adds strength, but Na2O cuts the network." },
+        { "id": "C", "text": "Makes the glass crystalline", "misconception": "Modifiers make the network more open, not more ordered." },
+        { "id": "D", "text": "Nothing, because sodium doesn't bond to oxygen", "misconception": "Na+ sits next to the non-bridging oxygens it creates." }
+      ],
+      "correct": "A",
+      "explanation": "Na2O is a network modifier. Each oxide ion breaks a bridging Si–O–Si link into two non-bridging oxygens, with Na+ nearby. That makes soda-lime glass far easier to work than pure silica."
+    },
+    {
+      "id": "ceramics-3", "conceptId": "ceramics", "difficulty": 1, "verified": true,
+      "stem": "Why are most ceramics, like Al2O3, poor electrical conductors?",
+      "options": [
+        { "id": "A", "text": "They are full of pores", "misconception": "Even fully dense alumina insulates." },
+        { "id": "B", "text": "They are amorphous", "misconception": "Most ceramics are crystalline." },
+        { "id": "C", "text": "Their strong ionic and covalent bonding leaves no free electrons, and the band gap is large" },
+        { "id": "D", "text": "They contain no metal atoms", "misconception": "Al2O3 contains aluminium. What matters is how the electrons are bound." }
+      ],
+      "correct": "C",
+      "explanation": "In ionic and covalent ceramics, electrons are locked in bonds or on ions, and the band gap is wide (about 9 eV for alumina). With almost no free carriers, they make excellent insulators."
+    },
+    {
+      "id": "ceramics-4", "conceptId": "ceramics", "difficulty": 2, "verified": true,
+      "stem": "Ceramics are much stronger in compression than in tension. Why?",
+      "options": [
+        { "id": "A", "text": "Their bonds get stronger when squeezed", "misconception": "Bond strength isn't what changes. Crack behaviour is." },
+        { "id": "B", "text": "They deform plastically in tension", "misconception": "Ceramics barely deform plastically at all." },
+        { "id": "C", "text": "They become denser when compressed", "misconception": "Any density change is tiny and not the reason." },
+        { "id": "D", "text": "Tension opens tiny flaws and concentrates stress at crack tips; compression closes them" }
+      ],
+      "correct": "D",
+      "explanation": "Every ceramic has microscopic flaws. Under tension they open and concentrate stress until a crack runs. Under compression they're pushed shut, which is why ceramics are designed to work in compression."
+    }
+  ]
+}
