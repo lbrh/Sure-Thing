@@ -1,5 +1,7 @@
 # Sure Thing: Technical Spec
 
+> This was the plan before the build. Where the code differs (no Tailwind, no `/api/grade`, a different `/api/questions` body, one `lib/engine.ts` instead of several files), `09-build-status.md` section 7 describes what was built. The game maths in section 5 below matches the code.
+
 ## 1. Principles
 
 1. **Local-first.** Game state lives in the browser. No accounts needed for the MVP. Fewer moving parts means fewer demo failures.
@@ -11,7 +13,7 @@
 
 | Layer | Choice | Why |
 |---|---|---|
-| App | Next.js (App Router) + TypeScript + Tailwind | Fast to build, easy deploy, API routes in the same repo |
+| App | Next.js (App Router) + TypeScript. Built with plain CSS, not Tailwind | Fast to build, easy deploy, API routes in the same repo |
 | State | Zustand with localStorage persistence | Simple, survives reloads |
 | Physics | Matter.js (2D, circles and sensors) | Mature, small, good fit for plinko |
 | Rendering | Custom canvas draw loop over Matter bodies | Full control of the look (matters for the Design score) |
@@ -21,7 +23,7 @@
 | Validation | zod | Reject malformed model output |
 | Tests | vitest | Fast unit tests for the game maths |
 
-Models: use `claude-sonnet-5-5` for question generation and `claude-haiku-4-5-20251001` for fast grading and verification. Confirm the current model strings and pricing at https://docs.claude.com before you build.
+Models: use `claude-sonnet-5-5` for question generation and `claude-haiku-4-5-20251001` for fast grading and verification. Confirm the current model strings and pricing at https://docs.claude.com before you build. As built, `lib/ai.ts` uses `claude-sonnet-5-5` and the `claude-haiku-4-5` alias, with structured outputs through the SDK's zod helper.
 
 ## 3. Architecture
 
@@ -243,10 +245,10 @@ All routes are server-side, validate input and output with zod, and never expose
 | Route | Input | Output | Notes |
 |---|---|---|---|
 | `POST /api/unit` | `{ unitName, topics? }` | `Concept[]` (10 to 14) | Cached by normalised unit name. Falls back to seeded unit |
-| `POST /api/questions` | `{ unitId, conceptIds[], perConcept }` | `Question[]` | Runs generation, then independent-solve verification. Drops any question that fails |
-| `POST /api/grade` (stretch) | `{ questionStem, rubric, answer }` | `{ score, feedback }` | Fast model, strict JSON |
+| `POST /api/questions` | `{ unitName, concepts: [{ id, name, summary }], perConcept }` | `{ questions: Question[] }` | Runs generation, then independent-solve verification. Drops any question that fails. 1 to 4 concepts and 1 to 4 questions per concept per request |
+| `POST /api/grade` (stretch, not built) | `{ questionStem, rubric, answer }` | `{ score, feedback }` | Fast model, strict JSON |
 
-Protection: simple per-IP rate limit, request size limits, and a hard cap on questions per request.
+Protection: simple per-IP rate limit (built: 30 requests per minute, in memory), request size limits, and a hard cap on questions per request. Both routes return 503 on failure and the client falls back to the seeded unit.
 
 ## 8. Prompts
 
@@ -325,7 +327,29 @@ Student answer: {{answer}}
 - Drop animation under 6 seconds per Shift summary, with a skip button.
 - 60 fps on a mid-range phone with up to 12 balls.
 
-## 12. Suggested repo layout
+## 12. Repo layout
+
+As built:
+
+```
+/app
+  page.tsx (client-only), layout.tsx, globals.css
+  /api/unit/route.ts, /api/questions/route.ts
+/components
+  App.tsx (all core screens), Board.tsx (canvas), Shop.tsx, Report.tsx
+  Mods.tsx (shop item copy, Roulette, Blackjack and Pop Quiz popups, MEGA HIT)
+  Chaos.tsx (MAXIMUM CHAOS skin layer), Seal.tsx (mascot), ui.tsx (Win95 primitives)
+/lib
+  engine.ts (pure maths), board.ts (Matter.js sim), minigames.ts (roulette, blackjack, quiz curve)
+  store.ts (Zustand game loop), ai.ts (generation and checks), loadUnit.ts (seeded routing and fallback)
+  copy.ts (Collector lines, Calm mode terms), sound.ts (synthesized sound)
+/data
+  databases-101.json, materials-chemistry.json, soil-chemistry.json
+/tests
+  engine.test.ts, golden.test.ts, minigames.test.ts, tuning.test.ts
+```
+
+Original suggestion:
 
 ```
 /app
@@ -353,7 +377,24 @@ Two sample questions to show the target quality:
 2. Which clause filters groups after aggregation?
    Correct: HAVING. Tempting wrong: WHERE (misconception: WHERE can filter on aggregate results).
 
-## 14. Environment variables
+## 14. Progression data (planned)
+
+The Cookie Clicker style price curve (`10-progression-and-inspiration.md`, section 1) needs two new persisted fields in `lib/store.ts`, plus a save migration that defaults both for older saves:
+
+```ts
+chipsEarnedTotal: number;                        // lifetime chips from the board, never reduced
+bought: Partial<Record<ShopItem, number>>;       // purchases per item
+
+export function price(item: ShopItem, bought: number, earned: number): number {
+  const tier = 1 + 0.25 * Math.floor(earned / 50);
+  const raw = Math.ceil(PRICES[item] * 1.15 ** bought * tier);
+  return item === "secondChance" || item === "defuser" ? Math.min(raw, PRICES[item] * 3) : raw;
+}
+```
+
+Keep `price()` pure (in `lib/engine.ts` or a new `lib/economy.ts`) so the tuning sim can test it.
+
+## 15. Environment variables
 
 ```
 ANTHROPIC_API_KEY=

@@ -42,7 +42,7 @@ Voiceover in quotes. Screen action in brackets. Time is approximate.
 | 0:20 to 0:40 | The Draw, then a question. Select B, tap Certain, Lock it in. Wrong. Bomb planted screen with "why this is tempting" | "Before every answer, you bet on how sure you are. I was certain. I was wrong. That puts a bomb on this topic, and now I know exactly where I'm fooling myself." |
 | 0:40 to 0:55 | Next question: Guess, correct, 1 ball. Next: Pretty sure, correct, 2 balls | "Honest confidence pays. Guess when you're guessing. Bet big only when you really know." |
 | 0:55 to 1:08 | Board drop. Balls bounce, solid pegs pay, the bomb peg costs chips. Chip counter ticks | "Your knowledge is the board. Solid pegs pay out. Bombs cost you." |
-| 1:08 to 1:15 | Shop. Buy Defuser. Retest question. Bomb defused with a snip | "Spend your winnings getting quizzed on your weakest topic, and defuse the bomb." |
+| 1:08 to 1:15 | Shop. Buy Defuser. Retest question. Bomb defused with a snip (the seal claps) | "Spend your winnings getting quizzed on your weakest topic, and defuse the bomb." |
 | 1:15 to 1:30 | Readiness report: confidence gap, topic list, tonight's plan. Closing title card | "Then it tells you where you stand and what to study tonight. Gambling psychology, pointed at learning. No real money, ever. Sure Thing: know what you don't know." |
 
 Production tips:
@@ -67,13 +67,14 @@ Production tips:
 | Question | Answer |
 |---|---|
 | Why not just ask ChatGPT for a quiz? | A chatbot gives you questions. It doesn't track whether you were sure and wrong, schedule retests of your confident mistakes, or plan around your exam date. The bet is what exposes the gap |
-| Isn't this gambling? | No real money, no purchasable currency, no cash-out, and chips can't go below zero. Odds are shown on screen. There are no slot or near-miss effects and a Calm mode removes the casino skin. We borrowed the structure of a plinko roguelike and pointed the psychology at honest self-assessment |
+| Isn't this gambling? | No real money, no purchasable currency, no cash-out, and chips can't go below zero. Odds are shown on screen, including on the Roulette and Blackjack pegs before you buy them. There are no near-miss effects, and Calm mode turns off every popup, flash and shake. We borrowed the structure of a plinko roguelike and pointed the psychology at honest self-assessment. (If the team cuts or reskins the casino pegs, update this answer. See doc 08, section 1) |
 | Does it actually work? | The methods behind it (retrieval practice, retests of confident errors) have strong research support. The combination is new, and one study of confidence-based marking found no improvement in exam scores, so we plan to measure outcomes in a pilot rather than assume them |
 | What about wrong AI questions? | Generated questions are checked by an independent solve pass and the demo unit is hand-verified. Every question has a flag button and flagged questions drop out |
 | How does it make money? | Free core loop. An Exam Season Pass and yearly plan, plus course dashboards for lecturers later. No ads and no selling chips |
 | Who is it for? | University students facing exams, starting with units that have multiple-choice or short-answer assessments |
 | Is the readiness score a grade prediction? | No. It's an estimate with the number of questions shown, and we say so |
-| What did you build in the time? | The full loop on a seeded unit, with live generation as a bonus and an offline fallback |
+| What did you build in the time? | The full loop on three hand-checked offline units, live generation with an independent check and a fallback, a crazy shop of board pegs, streaks, two skins and a mascot, with 45 automated tests including an economy tuning sim |
+| Why will people keep playing? | Cookie Clicker style progression is next: shop prices rise as you earn, so there is always something to save for, and the fastest way to earn is to know more and bet honestly |
 | Isn't Gizmo already a gamified study app? | Yes, and it shows students like game mechanics. Gizmo gamifies habits with streaks and lives. In Sure Thing the game mechanic is the learning method, and we never penalise wrong answers with lockouts |
 | Did you copy John Gleep? | We took inspiration from the structure (debt, pegs you customise, upgrades). The theme, characters, art and audio are our own |
 

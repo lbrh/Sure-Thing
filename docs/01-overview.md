@@ -73,6 +73,9 @@ Rubric mapping is in `07-demo-script-and-rubric.md`.
 
 - **John Gleep** (unreleased, Steam lists Nov 11 2026) mixes two screens, pegs from a gacha machine and a debt to the mob. We borrow the structure: debt countdown, pegs as the board you customise, upgrades between rounds. We do not borrow its art, names, characters or audio.
 - Plinko roguelikes are a proven genre (Nubby's Number Factory, Plinko Panic, and the Balatro wave). Our twist is that the board is a map of your knowledge.
+- **Cookie Clicker** for progression: upgrades get more expensive as you earn more chips, so there is always a next thing to save for. This is a requirement for the next build (`10-progression-and-inspiration.md`, section 1).
+- **Peggle** for board feel: target pegs to clear, a sliding free-ball bucket, power pegs and style-shot bonuses are all candidates (`10-progression-and-inspiration.md`, section 2).
+- **Casino and gambling games** for minigames and bonuses. The build already has Roulette and Blackjack pegs. More ideas (Keno-style calibration bets, bingo cards of concepts, double or nothing on a knowledge question) are listed with a guardrail check, and the tactics we will not use are named (`10-progression-and-inspiration.md`, section 3).
 
 ## 9. Assumptions
 
@@ -81,13 +84,22 @@ Rubric mapping is in `07-demo-script-and-rubric.md`.
 - Web app, mobile-first layout, demoed on desktop.
 - One seeded demo unit so the demo never depends on live AI.
 
-## 10. Decisions still open
+## 10. Decisions
+
+Still open:
 
 1. Final name (Sure Thing is the working pick).
-2. Demo unit subject (suggest Databases 101, since your team can verify answers fast).
-3. Is the "Explain it to the Intern" teach round in or out?
-4. Hosting and submission format (check the hackathon rules).
-5. Whether to ship a "Calm mode" skin in the MVP (recommended, small effort).
+2. Is the "Explain it to the Intern" teach round in or out? (Not built.)
+3. Hosting and submission format (check the hackathon rules).
+4. **Casino imagery.** The build added Roulette, Blackjack and a MEGA HIT flash, against the original guardrails. Keep, reskin or cut (`08-risks-and-guardrails.md`, section 1).
+5. **How far to take Peggle and casino mechanics** (`10-progression-and-inspiration.md`).
+
+Settled by the build (see `09-build-status.md`):
+
+- Demo unit: Databases 101, plus two more hand-checked offline units (Materials Chemistry and Soil Properties (Chemistry)).
+- Calm mode shipped in the MVP.
+- Look: Windows 95 / early-web "Retro 95" skin by default, with an optional MAXIMUM CHAOS skin and a seal mascot.
+- Progression: shop prices will rise as you earn, Cookie Clicker style (requirement, not built yet).
 
 ## 11. Glossary
 
@@ -101,6 +113,12 @@ Rubric mapping is in `07-demo-script-and-rubric.md`.
 | The Collector | The antagonist who "collects" your debt on exam day |
 | Debt | Mastery you still owe before exam day |
 | Exam Day | A final mock exam round that produces the readiness report |
+| Streak | Correct answers in a row. Multiplies that answer's drop chips, up to x3 |
+| Chute | One of 7 drop points above the board. The player aims each ball by picking one |
+| Shop peg | A permanent special peg bought in the Shop (Roulette, Blackjack, Pop Quiz, Splitter, Black Hole, Bumper) |
+| Shift mod | A one-Shift board modifier (Magnet, MEGA BUCKET, Earthquake) |
+| Skin | The look of the app: Retro 95 or MAXIMUM CHAOS. Calm mode overrides both |
+| MEGA HIT | The celebration for any payout of x5 or more |
 
 ## 12. Document index
 
@@ -112,3 +130,5 @@ Rubric mapping is in `07-demo-script-and-rubric.md`.
 6. `06-design.md`
 7. `07-demo-script-and-rubric.md`
 8. `08-risks-and-guardrails.md`
+9. `09-build-status.md` (what the first build ships and how it differs from these plans)
+10. `10-progression-and-inspiration.md` (Cookie Clicker progression requirement, Peggle and casino ideas)

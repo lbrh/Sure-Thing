@@ -42,6 +42,23 @@ Not so different:
 11. **No streak punishment.** Missing a day never takes anything away.
 12. **A harm-reduction advisor reviews the mechanics and copy before any public launch.**
 
+### Where the build stands (October 2026): open decision
+
+The first build (doc 09) breaks two of the rules above as written:
+
+- **Rule 6 (no casino imagery).** The shop sells a Roulette Peg (a spinning 12-slot wheel) and a Blackjack Peg (a dealt hand of playing cards). Shop badges say HOT!, and the marquee advertises "NEW! ROULETTE PEG".
+- **Rule 5 (no jackpot flashing).** Any payout of x5 or more fires a "MEGA HIT!!!" overlay with confetti, a screen shake and an arpeggio.
+
+What still holds: no money in or out, chips cannot be bought, odds are shown on every shop card and popup, randomness is never sold for money, retests stay free in the Draw, chips floor at zero, and Calm mode and reduced motion turn the popups, strobe and shake off (captured balls auto-play with the same result).
+
+Doc 10 proposes going further (Peggle mechanics, Keno, bingo, double or nothing, scratch cards). The team needs to decide one of:
+
+1. **Keep the casino layer** and rewrite rules 5 and 6 to match (for example: casino-style minigames allowed only with odds shown, no money, off in Calm mode, and never paying more on average than answering well). Then Calm mode should probably be the default for any public release.
+2. **Reskin it** to keep the mechanics but drop the casino look (a "prize wheel" instead of roulette, a "21 quiz" instead of cards).
+3. **Cut it** back to the original plan.
+
+Until that is decided, treat the casino layer as demo-only and lead with the guardrails when judges ask. The "never use" list in doc 10, section 3.3 (near misses, losses disguised as wins, chasing prompts, loss-based daily rewards, paid randomness) applies whichever option is picked.
+
 ### Pre-launch actions
 
 - Take the classification question to someone qualified.
@@ -99,7 +116,8 @@ Not so different:
 
 | Risk | Mitigation |
 |---|---|
-| Scope creep (roguelike plus AI plus physics plus economy) | Follow the cut list in `02-mvp-plan.md`. Never cut the bet, the board, bombs, retests or the report |
+| Scope creep (roguelike plus AI plus physics plus economy) | Follow the cut list in `02-mvp-plan.md`. Never cut the bet, the board, bombs, retests or the report. The crazy shop, skins and mascot already went beyond the plan (doc 09), so new ideas from doc 10 wait until the core is demo-ready |
+| Escalating prices (doc 10, section 1) outpace income and stall the shop | Multi-Shift player sim in the tuning tests, cap study tool prices at 3x |
 | Board physics eat time | Start with a static board in the first 4 hours. Seed layouts. Add Skip |
 | Economy feels bad | Reserve 30 minutes for the tuning simulation and a playtest |
 | AI latency or failure on demo day | Seeded bank, pre-generation, offline mode |
@@ -112,7 +130,7 @@ Not so different:
 - Use only fonts, sounds and images you have rights to (Google Fonts and licensed or self-made audio).
 - Do not use real brand or casino names.
 
-## 9. Risk register (top 10)
+## 9. Risk register
 
 | # | Risk | Likelihood | Impact | Owner | Mitigation |
 |---|---|---|---|---|---|
@@ -126,6 +144,7 @@ Not so different:
 | 8 | Competitor copies the idea | Low (short term) | Medium | Lead | Pilot quickly, build bank and data |
 | 9 | Privacy mistake | Low | High | Backend | Local-first, no PII |
 | 10 | Student feels judged or stressed | Medium | Medium | Design | Tone rules, soft penalties, Calm mode |
+| 11 | Roulette, Blackjack and MEGA HIT read as a casino (already built) | High | High | Whole team | Decide keep, reskin or cut (section 1). Odds shown, Calm mode, no money |
 
 ## 10. Principles to repeat in every meeting
 

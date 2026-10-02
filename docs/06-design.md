@@ -1,12 +1,14 @@
 # Sure Thing: Design Doc (UI, UX and Game Feel)
 
+> The first build changed the look a lot: a Windows 95 / early-web style, a MAXIMUM CHAOS skin, a seal mascot and casino-style shop pegs. Sections marked **As built** describe the code. `09-build-status.md` has the full list.
+
 ## 1. Design goals
 
 1. **One thing to look at.** The board is both the game and the feedback screen. If someone can read the board, they can read their knowledge.
 2. **Honesty feels good.** The interface should make saying "I'm not sure" feel smart, not weak.
 3. **Fast to start, easy to stop.** First bet inside 60 seconds. A Shift takes about 8 minutes.
 4. **Funny, never shaming.** Mistakes are material for jokes, not punishment.
-5. **Not a casino.** Playful pachinko parlour, not slot machine. See the guardrails.
+5. **Not a casino.** Playful pachinko parlour, not slot machine. See the guardrails. (Under review: the build added Roulette and Blackjack pegs. See doc 08, section 1.)
 
 How each goal maps to the prompt: Smarter (1, 2), Easier (3), More enjoyable (4, 5).
 
@@ -14,7 +16,20 @@ How each goal maps to the prompt: Smarter (1, 2), Easier (3), More enjoyable (4,
 
 **Mood:** study lamp meets pachinko parlour. A tired bureaucrat (The Collector) is chasing you for a pass. Warm lamp light on a dark desk, bouncy neon pegs.
 
-**Avoid:** slot reels, playing cards, dollar signs, lucky sevens, flashing jackpot lights, anything that reads as a real casino brand.
+**Avoid:** slot reels, playing cards, dollar signs, lucky sevens, flashing jackpot lights, anything that reads as a real casino brand. (The build now has a roulette wheel, playing cards and a "MEGA HIT" flash. Keep, reskin or cut is an open decision in doc 08.)
+
+### As built: two skins
+
+The planned lamp-and-parlour theme was not built. Instead:
+
+- **Retro 95 (default).** Windows 95 grey with bevelled windows, navy gradient title bars and fake file names (`THE_DRAW.EXE`, `CORRECT.WAV`, `READINESS_REPORT.DOC`), a black scrolling marquee, green-on-black hit counters (days, chips, streak, debt), "UNDER CONSTRUCTION" labels, blinking HOT! and NEW! badges, rainbow headings.
+- **MAXIMUM CHAOS (free, equip in the Shop).** Everything in Retro 95 plus fake pop-ups, neon confetti, floating 3D words, fake RealPlayer and WinAmp windows, banner "GIFs" and a swarm of pixelated emoji buttons with surprise effects. Nothing flashes faster than twice a second (WCAG 2.3.1 allows 3).
+
+Calm mode switches off every chaos effect, whichever skin is equipped.
+
+Board colours as built (on a black board): Solid `#00ff00`, Shaky `#ffff00`, Cold `#808080`, Bomb `#ff0000`. Shapes are unchanged from the table below, so colour is still never the only signal.
+
+Fonts as built: system fonts only, for the 90s look and no network fetch. Headings in Arial Black (Impact fallback), body in MS Sans Serif (Segoe UI and Tahoma fallbacks), numbers in Courier New, The Collector in Comic Sans. Body text is 15px, below the planned 16px minimum.
 
 ### Palette (CSS tokens)
 
@@ -67,6 +82,12 @@ A dry, tired debt collector with a ledger. Short lines, deadpan.
 | Daily cap hit | "Enough for today. Your brain files things while you sleep. See you tomorrow." |
 
 Tone rules: never insult the player, never mock effort, never guilt about missing a day.
+
+As built, The Collector speaks from a `THE_COLLECTOR.TXT` note window. Extra lines in `lib/copy.ts`: "Fine. That one's yours." (Pretty sure and right), "A lucky guess. I'll allow it, but it doesn't count as knowing." (Guess and right), "Not this time. At least you were honest about it." (Guess and wrong), "Second Chance. That one's on the house. Try again.", "Exam Day. No chips, no shop. Just you and the ledger." and "Back again. The ledger's open."
+
+### Mascot (as built)
+
+A low-poly paper-craft seal (pure SVG and CSS) lies in the corner of every screen. It rocks side to side, claps or slaps its belly every 5 to 10 seconds, claps when you are right, slaps its belly when a bomb lands, and squeaks "GYUU!" (synthesized) when clicked or on a MEGA HIT. It is silent in Calm mode.
 
 ## 4. Information architecture and flow
 
@@ -183,6 +204,10 @@ The copy says "often the easiest to fix", not "always", because the research eff
 
 ### 5.6 Board and Drop
 
+**As built:** the drop happens on the Reveal screen, with the answer on the left and the board on the right, so there is no separate Board screen. You aim each earned ball by clicking one of 7 coloured chutes above the board (or pressing 1 to 7). A ball counter and a Skip button sit above the board. Skip drops the rest down the middle instantly with the same simulation. Reduced motion resolves the drop instantly. Owned shop pegs sit on the board and can capture a ball (Roulette, Blackjack and Pop Quiz open a popup window) or change its path (Splitter, Black Hole, Bumper). A payout of x5 or more fires "MEGA HIT!!!" with confetti and a shake, unless Calm mode or reduced motion is on.
+
+Planned:
+
 Portrait board with about 30 pegs, 12 of them scoring pegs labelled on tap or hover with the concept name. Balls drop from the top. Each scoring peg hit shows a small floating "+2" or "-2". Buckets at the bottom show multipliers. A **Skip** button resolves instantly. Chip counter ticks up with a soft sound. New bombs appear with a short fuse-spark animation.
 
 Tapping any peg opens a small card: concept name, state, box level, last result.
@@ -190,6 +215,10 @@ Tapping any peg opens a small card: concept name, state, box level, last result.
 ### 5.7 Shop
 
 Three offers shown per visit, drawn at random from the item list (roguelike feel). Each shows name, effect, price in chips and a one-line joke. Nothing is purchasable with money. A Defuser card previews which bombs it can defuse.
+
+**As built:** three rows. **Skins** (Retro 95 and MAXIMUM CHAOS, free to switch), **Study tools** (Second Chance and Defuser, always on sale), and **Today's crazy offers** (3 items from Magnet, MEGA BUCKET, Earthquake and any board pegs you do not own yet, rotating as you answer more questions). Every card is a Win95 window with a hit-counter price, the odds where there are any, and a "NEED n MORE" line when you cannot afford it. If you left a Shift to shop, a Resume button takes you back.
+
+**Next: rising prices.** Prices must grow as the player earns more chips, Cookie Clicker style (`10-progression-and-inspiration.md`, section 1). Each card should show the current price, the next price and why it rose, so the curve is transparent like the odds.
 
 ### 5.8 Readiness Report
 
@@ -225,6 +254,8 @@ Always label the score as an estimate and show how many questions it is based on
 - Sound on or off
 - Reduced motion
 - "How scoring works" (the odds table)
+
+**As built:** a `CONTROL_PANEL.EXE` window with Calm mode, Sound, Reduced motion and the daily Shift cap (1 to 12), an `ODDS.TXT` window with the odds table and the break-even points, a Back button and a "New unit" button that clears progress after a confirm. The skin picker lives in the Shop, not in Settings.
 
 ## 6. Motion, sound and feel
 
@@ -272,4 +303,8 @@ No tutorial modals after that. The odds table stays one tap away.
 - [ ] The bomb moment fits in one screen with no scrolling
 - [ ] The readiness report is readable in 10 seconds
 - [ ] Calm mode looks intentional, not like a broken page
-- [ ] Nothing in the UI resembles a real casino, slot machine or betting brand
+- [ ] Nothing in the UI resembles a real casino, slot machine or betting brand (fails today: Roulette and Blackjack pegs. Decide in doc 08, section 1)
+
+## 12. Next round of game feel
+
+Ideas from Peggle (target pegs to clear, a sliding free-ball bucket, power pegs, style-shot bonuses, a finale when the last bomb is defused) and from casino and gambling games (Keno-style calibration bets, bingo cards of concepts, double or nothing on a knowledge question, scratch cards) are in `10-progression-and-inspiration.md`. Each one lists how it fits the guardrails, and section 3.3 there lists tactics we will not use.

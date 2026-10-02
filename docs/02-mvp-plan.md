@@ -6,6 +6,8 @@ One sentence: **a player can set up a unit, play three Shifts of confidence-bett
 
 Success for the hackathon is a reliable 90 second demo and a clear answer to "why is this smarter, easier and more enjoyable?".
 
+**Status (2 October 2026):** every Must have item is built, and every Should have item except a phone-tested mobile layout. See `09-build-status.md` for what shipped, the numbers as built, and where the build differs from this plan. The next requirement, rising shop prices, is in section 4.9 and `10-progression-and-inspiration.md`.
+
 ## 2. Scope (MoSCoW)
 
 ### Must have
@@ -16,7 +18,8 @@ Success for the hackathon is a reliable 90 second demo and a clear answer to "wh
 - Reveal screen with explanation and the "why this is tempting" misconception line.
 - Plinko board built from concept states, ball drops, chip payouts, bomb pegs.
 - Mastery tracking per concept (Leitner boxes) and bomb retests.
-- Shop with 3 upgrades: Second Chance, Defuser, Magnet Peg.
+- Shop with 3 upgrades: Second Chance, Defuser, Magnet Peg. (Built, plus a rotating "crazy shop" of 9 board pegs and modifiers. See doc 09, section 4.)
+- Shop prices that rise as you earn more chips, Cookie Clicker style (new requirement, not built yet, section 4.9).
 - Readiness report: per-concept mastery, confidence gap, overconfident topics, tonight's plan.
 - Safe play basics: no real money, chips floor at zero, daily Shift cap, Calm mode toggle.
 - Offline fallback (everything works from the seeded bank with no network).
@@ -57,6 +60,8 @@ Success for the hackathon is a reliable 90 second demo and a clear answer to "wh
 
 Chips never go below zero. A wrong answer never locks content, never costs lives and never starts a timer.
 
+**Added in the build: streak multiplier.** Consecutive correct answers multiply that answer's drop chips: x1, x1.5, x2, x2.5, capped at x3. A wrong answer resets it. It multiplies chips only (never mastery), and a Certain bet is still only worth it above about 75% sure, so honest confidence stays the best strategy. Players start with 5 chips.
+
 **Why these numbers.** Assume an average ball is worth about 1 chip (tuned in section 4.4). Expected value per question when your chance of being right is p:
 
 - Guess: p
@@ -79,6 +84,8 @@ Each concept has 2 scoring pegs on the board. The rest are neutral bumpers.
 ### 4.3 Bucket multipliers (bottom of the board)
 
 x0.5, x1, x2, x3, x2, x1, x0.5 (centre is highest). Upgrades can change these.
+
+As built, a ball is worth `(1 + sum of peg yields) * bucket * 0.36`, rounded and floored at 0. The player aims each ball by picking one of 7 chutes above the buckets.
 
 ### 4.4 Tuning step (30 minutes)
 
@@ -116,9 +123,19 @@ where urgency is 1.25 when the exam is 3 days away or less. The Draw offers the 
 
 Note the Defuser: spending chips to get quizzed again on your weakest topic rewards self-testing. The same retest is also available free through the normal Draw, so chips never gate learning.
 
+As built: Hint and Wide Catcher were not made. Magnet Peg moved into a rotating set of 3 "crazy offers" per visit, alongside MEGA BUCKET, Earthquake, and six permanent board pegs (Roulette, Blackjack, Pop Quiz, Splitter, Black Hole, Bumper). Full price list in doc 09, section 4. All prices are currently flat.
+
 ### 4.8 Exam Day (final boss)
 
 10 questions sampled across all concepts, weighted to weak and bombed ones, bets on. The result feeds the readiness report. The label is "readiness estimate", never "predicted grade".
+
+### 4.9 Progression: prices rise as you earn (new requirement)
+
+Like Cookie Clicker, upgrades must get more expensive as the player earns more chips, so there is always something worth saving for. Starting proposal: each purchase of an item raises its next price by 15%, and every price rises another 25% for each 50 chips earned all time. Study tools (Second Chance, Defuser) are capped at 3x base so learning is never priced out, and income has to grow with learning (more Solid pegs, streaks, owned pegs) so the curve never becomes a wall. Full rules and acceptance criteria are in `10-progression-and-inspiration.md`, section 1.
+
+### 4.10 Inspiration for the next round
+
+Mechanics from Peggle (target pegs to clear, a moving free-ball bucket, power pegs, style-shot bonuses) and from casino and gambling games (Keno-style calibration bets, bingo cards of concepts, double or nothing on a knowledge question) are collected in `10-progression-and-inspiration.md`, sections 2 and 3, each checked against the guardrails.
 
 ## 5. Screens required
 
