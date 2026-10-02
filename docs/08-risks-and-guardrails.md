@@ -33,8 +33,8 @@ Not so different:
 2. **No loot boxes or paid randomness.** Nothing random is for sale.
 3. **Learning is never locked behind losses.** Wrong answers do not cost lives, start timers or block content.
 4. **Chips floor at zero.** No chip debt. Wrong answers never reduce mastery beyond normal Leitner movement.
-5. **No near-miss tricks.** No "so close!" animations or audio, no slow-motion on almost-big buckets, no jackpot flashing.
-6. **No slot or casino imagery.** No reels, cards, dollar signs, lucky sevens.
+5. **No near-miss tricks, and celebrations only for real gains.** No "so close!" animations or audio, no slow motion or zoom before a hit lands, no strobing jackpot lights. A celebration fires only when a payout beats what the ball already had, and its size grows with the gain (NICE!, SUPER DROP!, MEGA HIT!). It never strobes the background, and only the biggest level shakes the screen. Off in Calm mode and with reduced motion.
+6. **Game show, not casino.** No reels, playing cards or suits, felt, roulette wheels, dollar signs or lucky sevens. Chance devices are styled as TV game show props (a Prize Wheel with a bulb rim, a 21 Quiz buzzer) inside the Win95 look. A chance device never takes a stake: the Prize Wheel only spins after a ball is caught, has no zero segment and only adds chips, and its odds are printed beside it. In Calm mode every chance device pays its expected value instantly.
 7. **Transparent odds.** The scoring table is on screen near every bet and in Settings.
 8. **Daily Shift cap** (default 6) with a friendly learning-science message (sleep and spaced retests help).
 9. **Calm mode.** Renames bets and chips, removes the parlour skin and sound, same mechanics.
@@ -42,22 +42,16 @@ Not so different:
 11. **No streak punishment.** Missing a day never takes anything away.
 12. **A harm-reduction advisor reviews the mechanics and copy before any public launch.**
 
-### Where the build stands (October 2026): open decision
+### Where the build stands (October 2026): decided, reskin
 
-The first build (doc 09) breaks two of the rules above as written:
+The team chose option 2 of the earlier open decision: keep the mechanics, drop the casino look.
 
-- **Rule 6 (no casino imagery).** The shop sells a Roulette Peg (a spinning 12-slot wheel) and a Blackjack Peg (a dealt hand of playing cards). Shop badges say HOT!, and the marquee advertises "NEW! ROULETTE PEG".
-- **Rule 5 (no jackpot flashing).** Any payout of x5 or more fires a "MEGA HIT!!!" overlay with confetti, a screen shake and an arpeggio.
+- **Roulette Peg became the Prize Wheel Peg.** Seven segments worth 1, 2, 2, 3, 3, 5 and 8 chips (average 24/7, about 3.43), no zero. It spins only after a ball is caught, adds its prize on top, and the ball drops back in with its value intact. The odds are printed under the wheel and on the shop card.
+- **Blackjack Peg became the 21 Quiz Peg.** No cards or suits. You answer questions from your unit worth 2 to 10 by difficulty, each value shown before you answer, and choose hit or stand after each right answer. A wrong answer or going over 21 busts only the hand bonus. Every right answer still pays 1 chip. Exactly 21 doubles the bonus.
+- **MEGA HIT is now proportional.** See rule 5.
+- **Pop Quiz** no longer zeroes the ball on a wrong answer. The ball keeps its value.
 
-What still holds: no money in or out, chips cannot be bought, odds are shown on every shop card and popup, randomness is never sold for money, retests stay free in the Draw, chips floor at zero, and Calm mode and reduced motion turn the popups, strobe and shake off (captured balls auto-play with the same result).
-
-Doc 10 proposes going further (Peggle mechanics, Keno, bingo, double or nothing, scratch cards). The team needs to decide one of:
-
-1. **Keep the casino layer** and rewrite rules 5 and 6 to match (for example: casino-style minigames allowed only with odds shown, no money, off in Calm mode, and never paying more on average than answering well). Then Calm mode should probably be the default for any public release.
-2. **Reskin it** to keep the mechanics but drop the casino look (a "prize wheel" instead of roulette, a "21 quiz" instead of cards).
-3. **Cut it** back to the original plan.
-
-Until that is decided, treat the casino layer as demo-only and lead with the guardrails when judges ask. The "never use" list in doc 10, section 3.3 (near misses, losses disguised as wins, chasing prompts, loss-based daily rewards, paid randomness) applies whichever option is picked.
+What holds: no money in or out, chips cannot be bought, odds are shown on every shop card and popup, randomness is never sold for money, retests stay free in the Draw, and chips floor at zero. The "never use" list in doc 10, section 3.3 applies.
 
 ### Pre-launch actions
 
@@ -144,7 +138,7 @@ Until that is decided, treat the casino layer as demo-only and lead with the gua
 | 8 | Competitor copies the idea | Low (short term) | Medium | Lead | Pilot quickly, build bank and data |
 | 9 | Privacy mistake | Low | High | Backend | Local-first, no PII |
 | 10 | Student feels judged or stressed | Medium | Medium | Design | Tone rules, soft penalties, Calm mode |
-| 11 | Roulette, Blackjack and MEGA HIT read as a casino (already built) | High | High | Whole team | Decide keep, reskin or cut (section 1). Odds shown, Calm mode, no money |
+| 11 | The game-show layer (Prize Wheel, 21 Quiz, cheers) still reads as a casino | Medium | High | Whole team | Reskinned in October 2026 (section 1). No stakes on chance, odds shown, expected value in Calm mode, no money |
 
 ## 10. Principles to repeat in every meeting
 

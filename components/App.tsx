@@ -4,12 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Board from "./Board";
 import Report from "./Report";
 import Shop from "./Shop";
-import { HoldModal, ITEM_INFO, MegaOverlay } from "./Mods";
+import { CheerOverlay, HoldModal, ITEM_INFO } from "./Mods";
 import { ColorSquares, Counter, Marquee, Window } from "./ui";
 import Chaos, { Banners, EmojiSwarm, confetti } from "./Chaos";
 import Seal, { sealDo } from "./Seal";
 import { inProgress, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
-import { layoutPegs, placeSpecials, type Hold, type PegSpec } from "@/lib/board";
+import { layoutPegs, placeSpecials, type Hold, type HoldResult, type PegSpec } from "@/lib/board";
 import { BALLS, PENALTY, badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
 import { CONF_LABEL, LINES, terms } from "@/lib/copy";
 import { sfx } from "@/lib/sound";
@@ -22,7 +22,7 @@ const MARQUEE: [string, string][] = [
   ["BET ON WHAT YOU KNOW", "#00ff00"],
   ["NO REAL MONEY, EVER", "#ff0000"],
   ["CHIPS CAN'T BE BOUGHT", "#00ffff"],
-  ["NEW! ROULETTE PEG IN THE SHOP", "#ff00ff"],
+  ["NEW! PRIZE WHEEL PEG IN THE SHOP", "#ff00ff"],
   ["HONEST CONFIDENCE ALWAYS PAYS BEST", "#ffffff"],
   ["BEST VIEWED AT 800x600", "#ffff00"],
 ];
@@ -679,30 +679,31 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (chips: numb
   const s = g.session!;
   const r = g.reveal;
   const { pegs, states } = usePegs();
-  const [hold, setHold] = useState<{ h: Hold; release: (m: number) => void } | null>(null);
-  const [mega, setMega] = useState<{ mult: number; value: number } | null>(null);
-  const megaTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [hold, setHold] = useState<{ h: Hold; release: (r: HoldResult) => void } | null>(null);
+  const [cheer, setCheer] = useState<{ level: 1 | 2 | 3; value: number } | null>(null);
+  const cheerTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const t = terms(g.settings.calm);
-  const chaos = !g.settings.calm; // Calm mode: popups auto-play, no strobe, no shake
+  const chaos = !g.settings.calm; // Calm mode: the wheel pays its average instantly, no cheers, no shake; quizzes still ask
   const sound = g.settings.sound && !g.settings.calm;
   const spark = r && (r.bombPlanted || r.bombDefused) ? [r.conceptId] : [];
   const { magnet, mega: megaMod, quake } = g.inventory;
   const drop = useMemo(() => ({ balls: s.pendingBalls, seed: s.dropSeed, magnet, mega: megaMod, quake }), [s.pendingBalls, s.dropSeed, magnet, megaMod, quake]);
 
-  const onMega = (mult: number, value: number) => {
-    setMega({ mult, value });
-    confetti(300);
-    sealDo("gyuu");
-    clearTimeout(megaTimer.current);
-    megaTimer.current = setTimeout(() => setMega(null), 1700);
-    if (reduced) return;
+  // sized to the payout: a small bonus gets a small cheer, only the biggest shakes
+  const onCheer = (level: 1 | 2 | 3, value: number) => {
+    setCheer({ level, value });
+    confetti([0, 60, 150, 300][level]);
+    if (level >= 2) sealDo("gyuu");
+    clearTimeout(cheerTimer.current);
+    cheerTimer.current = setTimeout(() => setCheer(null), [0, 900, 1300, 1700][level]);
+    if (reduced || level < 3) return;
     const html = document.documentElement;
     html.classList.remove("shake");
     void html.offsetWidth; // restart the animation on back-to-back hits
     html.classList.add("shake");
     setTimeout(() => html.classList.remove("shake"), 650);
   };
-  useEffect(() => () => clearTimeout(megaTimer.current), []);
+  useEffect(() => () => clearTimeout(cheerTimer.current), []);
 
   const active = [magnet && "MAGNET", megaMod && "MEGA BUCKET", quake && "EARTHQUAKE"].filter(Boolean) as string[];
 
@@ -723,8 +724,8 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (chips: numb
           calm={g.settings.calm}
           sound={sound}
           reducedMotion={reduced}
-          onHold={chaos ? (h, release) => setHold({ h, release }) : undefined}
-          onMega={chaos ? onMega : undefined}
+          onHold={(h, release) => setHold({ h, release })}
+          onCheer={chaos ? onCheer : undefined}
           onDone={(c) => {
             setHold(null);
             onDone(c);
@@ -738,13 +739,14 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (chips: numb
           key={hold.h.id}
           hold={hold.h}
           sound={sound}
-          onDone={(m) => {
-            hold.release(m);
+          reduced={reduced}
+          onDone={(r) => {
+            hold.release(r);
             setHold(null);
           }}
         />
       )}
-      {mega && <MegaOverlay mult={mega.mult} value={mega.value} chips={t.chips} />}
+      {cheer && <CheerOverlay level={cheer.level} value={cheer.value} chips={t.chips} />}
     </div>
   );
 }

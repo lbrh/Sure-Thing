@@ -8,7 +8,7 @@
 2. **Honesty feels good.** The interface should make saying "I'm not sure" feel smart, not weak.
 3. **Fast to start, easy to stop.** First bet inside 60 seconds. A Shift takes about 8 minutes.
 4. **Funny, never shaming.** Mistakes are material for jokes, not punishment.
-5. **Not a casino.** Playful pachinko parlour, not slot machine. See the guardrails. (Under review: the build added Roulette and Blackjack pegs. See doc 08, section 1.)
+5. **Not a casino.** Playful pachinko parlour and TV game show, not slot machine. See the guardrails. The Roulette and Blackjack pegs were reskinned as the Prize Wheel and 21 Quiz pegs (doc 08, section 1).
 
 How each goal maps to the prompt: Smarter (1, 2), Easier (3), More enjoyable (4, 5).
 
@@ -16,7 +16,7 @@ How each goal maps to the prompt: Smarter (1, 2), Easier (3), More enjoyable (4,
 
 **Mood:** study lamp meets pachinko parlour. A tired bureaucrat (The Collector) is chasing you for a pass. Warm lamp light on a dark desk, bouncy neon pegs.
 
-**Avoid:** slot reels, playing cards, dollar signs, lucky sevens, flashing jackpot lights, anything that reads as a real casino brand. (The build now has a roulette wheel, playing cards and a "MEGA HIT" flash. Keep, reskin or cut is an open decision in doc 08.)
+**Avoid:** slot reels, playing cards and suits, felt, roulette wheels, dollar signs, lucky sevens, flashing jackpot lights, anything that reads as a real casino brand. Chance devices look like game show props: a Prize Wheel with a light-bulb rim and bright segments, a 21 Quiz buzzer.
 
 ### As built: two skins
 
@@ -204,7 +204,7 @@ The copy says "often the easiest to fix", not "always", because the research eff
 
 ### 5.6 Board and Drop
 
-**As built:** the drop happens on the Reveal screen, with the answer on the left and the board on the right, so there is no separate Board screen. You aim each earned ball by clicking one of 7 coloured chutes above the board (or pressing 1 to 7). A ball counter and a Skip button sit above the board. Skip drops the rest down the middle instantly with the same simulation. Reduced motion resolves the drop instantly. Owned shop pegs sit on the board and can capture a ball (Roulette, Blackjack and Pop Quiz open a popup window) or change its path (Splitter, Black Hole, Bumper). A payout of x5 or more fires "MEGA HIT!!!" with confetti and a shake, unless Calm mode or reduced motion is on.
+**As built:** the drop happens on the Reveal screen, with the answer on the left and the board on the right, so there is no separate Board screen. You aim each earned ball by clicking one of 7 coloured chutes above the board (or pressing 1 to 7). A ball counter and a Skip button sit above the board. Skip drops the rest down the middle instantly with the same simulation. Reduced motion resolves the drop instantly. Owned shop pegs sit on the board and can capture a ball (Prize Wheel, 21 Quiz and Pop Quiz open a popup window) or change its path (Splitter, Black Hole, Bumper). A payout that beats what the ball already had gets a cheer sized to the gain: NICE!, SUPER DROP! or MEGA HIT!, with no strobing background and a shake only for the biggest. Off in Calm mode and with reduced motion. In Calm mode the Prize Wheel pays its average (3) instantly.
 
 Planned:
 
@@ -303,7 +303,7 @@ No tutorial modals after that. The odds table stays one tap away.
 - [ ] The bomb moment fits in one screen with no scrolling
 - [ ] The readiness report is readable in 10 seconds
 - [ ] Calm mode looks intentional, not like a broken page
-- [ ] Nothing in the UI resembles a real casino, slot machine or betting brand (fails today: Roulette and Blackjack pegs. Decide in doc 08, section 1)
+- [ ] Nothing in the UI resembles a real casino, slot machine or betting brand (the Roulette and Blackjack pegs were reskinned as game show props in October 2026)
 
 ## 12. Next round of game feel
 

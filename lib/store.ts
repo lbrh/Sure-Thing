@@ -19,10 +19,12 @@ export const EXAM_LENGTH = 10;
 export const START_CHIPS = 5;
 export const PRICES: Record<ShopItem, number> = {
   secondChance: 8, defuser: 10, magnet: 15, mega: 22, quake: 6,
-  roulette: 18, blackjack: 20, quiz: 12, splitter: 14, blackhole: 16, bumper: 8,
+  wheel: 18, quiz21: 20, quiz: 12, splitter: 14, blackhole: 16, bumper: 8,
 };
+/** Pegs renamed by the game-show reskin, for old saves. */
+const RENAMED: Record<string, SpecialKind> = { roulette: "wheel", blackjack: "quiz21" };
 export const SHIFT_MODS: ShiftMod[] = ["magnet", "mega", "quake"];
-export const SPECIALS: SpecialKind[] = ["roulette", "blackjack", "quiz", "splitter", "blackhole", "bumper"];
+export const SPECIALS: SpecialKind[] = ["wheel", "quiz21", "quiz", "splitter", "blackhole", "bumper"];
 
 export interface Unit {
   id: string;
@@ -357,10 +359,12 @@ export const useGame = create<Data & Actions>()(
     },
     {
       name: "sure-thing-v1",
-      // older saves predate the crazy shop
+      // older saves predate the crazy shop and the game-show reskin
       merge: (saved, current) => {
         const s = saved as Partial<Data>;
-        return { ...current, ...s, inventory: { ...initial.inventory, ...s.inventory }, settings: { ...initial.settings, ...s.settings } };
+        const inventory = { ...initial.inventory, ...s.inventory };
+        inventory.pegs = inventory.pegs.map((k) => RENAMED[k as string] ?? k);
+        return { ...current, ...s, inventory, settings: { ...initial.settings, ...s.settings } };
       },
     }
   )

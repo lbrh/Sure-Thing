@@ -1,6 +1,6 @@
 import Matter from "matter-js";
 import { rng, type PegState } from "./engine";
-import { autoplay, BJ_MULT, ROULETTE, rouletteSlot } from "./minigames";
+import { celebration, PRIZE_WHEEL, wheelEV, wheelSlot } from "./minigames";
 
 export const W = 360;
 export const H = 550;
@@ -15,7 +15,6 @@ export const SCALE = 0.36;
 export const MAX_ACTIVE = 12;
 export const MAX_BALLS = 40; // splitter cap
 export const MAGNET_R = 30;
-export const MEGA_AT = 5; // multiplier that triggers shake + rainbow
 // Fairness knobs, checked by tests/tuning.test.ts ("aim matters, walls don't swallow balls")
 export const PEG_BOUNCE = 0.3;
 export const BALL_BOUNCE = 0.3;
@@ -38,9 +37,9 @@ export const BUCKET_TOP = TOP + ROWS * ROW_GAP + 10;
 export const WALL_PEGS_Y = Array.from({ length: ROWS }, (_, r) => TOP + r * ROW_GAP + ROW_GAP / 2);
 
 /** Shop pegs. Hold pegs capture the ball and open a popup; the rest act on the physics. */
-export type SpecialKind = "roulette" | "blackjack" | "quiz" | "splitter" | "blackhole" | "bumper";
-export type HoldKind = "roulette" | "blackjack" | "quiz";
-export const isHold = (k?: SpecialKind): k is HoldKind => k === "roulette" || k === "blackjack" || k === "quiz";
+export type SpecialKind = "wheel" | "quiz21" | "quiz" | "splitter" | "blackhole" | "bumper";
+export type HoldKind = "wheel" | "quiz21" | "quiz";
+export const isHold = (k?: SpecialKind): k is HoldKind => k === "wheel" || k === "quiz21" || k === "quiz";
 
 export interface PegSpec {
   x: number;
@@ -97,18 +96,25 @@ interface Ball {
   held: boolean;
   child: boolean;
   warped: boolean;
-  boost: number; // blackjack multiplier the ball carries down to its bucket
 }
 
 export interface Hold {
   id: number;
   kind: HoldKind;
   peg: number;
-  seed: number; // deterministic outcome source (wheel slot, card deck, quiz pick)
-  ballValue: number; // chips the ball carries in; payout = ballValue * multiplier
+  seed: number; // deterministic outcome source (wheel segment, quiz pick)
+  ballValue: number; // chips the ball carries in; never at stake
+  segments: number[]; // Prize Wheel segments for this ball
 }
 
-export type DropEvent = { type: "peg"; state: PegState | "neutral" | SpecialKind } | { type: "mega"; mult: number; value: number };
+/** What a popup hands back. Wheel and 21 Quiz add a bonus and the ball drops on; Pop Quiz pays the ball times mult. */
+export interface HoldResult {
+  bonus?: number;
+  skill?: number; // chips paid for correct answers inside the popup
+  mult?: number;
+}
+
+export type DropEvent = { type: "peg"; state: PegState | "neutral" | SpecialKind } | { type: "cheer"; level: 1 | 2 | 3; value: number };
 
 export interface DropOptions {
   balls: number;
@@ -117,6 +123,7 @@ export interface DropOptions {
   mega?: boolean; // centre bucket x10 for this Shift
   quake?: boolean; // gravity wobbles sideways
   manual?: boolean; // player drops each ball by picking a chute; otherwise balls auto-drop near the centre
+  calm?: boolean; // chance devices resolve to their expected value
 }
 
 /** Seven drop chutes across the top, one above each bucket. */
@@ -127,11 +134,14 @@ export const chuteX = (i: number) => (W / CHUTES) * (i + 0.5);
 /** Popup pegs pay the ball's full value (no SCALE), min 1, so a big multiplier feels big. */
 export const holdValue = (total: number) => Math.max(1, BASE + total);
 
-/** Outcome used when nobody plays the popup (Skip, Calm mode, reduced motion, tests). */
-export function autoMultiplier(h: Pick<Hold, "kind" | "seed">): number {
-  if (h.kind === "roulette") return ROULETTE[rouletteSlot(rng(h.seed)())];
-  if (h.kind === "blackjack") return BJ_MULT[autoplay(h.seed)];
-  return 1; // quiz: no answer, no change
+/** The wheel segment a ball lands on: seeded, so Skip and the animation agree. */
+export const wheelResult = (h: Pick<Hold, "seed" | "segments">) => h.segments[wheelSlot(rng(h.seed)(), h.segments.length)];
+
+/** Outcome used when nobody plays the popup (Skip, reduced motion, tests). Calm mode pays the wheel's expected value. */
+export function autoResult(h: Pick<Hold, "kind" | "seed" | "segments">, calm = false): HoldResult {
+  if (h.kind === "wheel") return { bonus: calm ? wheelEV(h.segments) : wheelResult(h) };
+  if (h.kind === "quiz") return { mult: 1 }; // no answer: the ball keeps its value
+  return {}; // 21 Quiz: no hand played, no bonus
 }
 
 export type Drop = ReturnType<typeof createDrop>;
@@ -172,6 +182,7 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
   const events: DropEvent[] = [];
   const landed = mult.map(() => 0); // balls per bucket, for fairness checks
   let chips = 0;
+  let skill = 0; // chips from answering popup questions, for the skill-share meter
   let spawned = 0;
   let auto = !opts.manual;
   let cooldown = 0;
@@ -182,25 +193,31 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
   const addBall = (x: number, y: number, child = false, total = 0) => {
     const body = Matter.Bodies.circle(x, y, BALL_R, { restitution: BALL_BOUNCE, friction: 0.001, frictionAir: AIR, label: "ball" });
     Matter.Composite.add(world, body);
-    const b: Ball = { id: nextId++, body, total, hit: new Set(), steps: 0, done: false, held: false, child, warped: false, boost: 1 };
+    const b: Ball = { id: nextId++, body, total, hit: new Set(), steps: 0, done: false, held: false, child, warped: false };
     balls.push(b);
     return b;
   };
 
-  const payout = (b: Ball, m: number, x: number, y: number, value: number) => {
+  /** Pay chips. The cheer compares the ball's outcome with what it already had (see celebration). */
+  const pay = (value: number, x: number, y: number, outcome: number, had: number) => {
+    chips += value;
+    const level = celebration(outcome, had);
+    texts.push({ x, y, text: `+${value}`, kind: level ? "wild" : "bucket", age: 0 });
+    if (level) events.push({ type: "cheer", level, value });
+  };
+
+  const payout = (b: Ball, x: number, y: number, value: number, had: number) => {
     b.done = true;
     b.held = false;
-    chips += value;
-    texts.push({ x, y, text: `+${value}`, kind: m >= MEGA_AT ? "wild" : "bucket", age: 0 });
-    if (m >= MEGA_AT) events.push({ type: "mega", mult: m, value });
+    pay(value, x, y, value, had);
     Matter.Composite.remove(world, b.body);
   };
 
   const bank = (b: Ball, bucket: number) => {
     if (b.done || b.held) return;
     landed[bucket]++;
-    const m = mult[bucket] * b.boost;
-    payout(b, m, bucket * slotW + slotW / 2, H - 40, Math.round(Math.max(0, BASE + b.total) * m * SCALE));
+    const base = Math.max(0, BASE + b.total) * SCALE;
+    payout(b, bucket * slotW + slotW / 2, H - 40, Math.round(base * mult[bucket]), Math.round(base));
   };
 
   const say = (i: number, text: string) => texts.push({ x: pegs[i].x, y: pegs[i].y - 14, text, kind: "wild", age: 0 });
@@ -211,8 +228,8 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     if (isHold(k)) {
       b.held = true;
       Matter.Composite.remove(world, b.body);
-      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total) });
-      say(i, k === "quiz" ? "POP QUIZ!" : k === "roulette" ? "SPIN!" : "21?");
+      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total), segments: PRIZE_WHEEL });
+      say(i, k === "quiz" ? "POP QUIZ!" : k === "wheel" ? "PRIZE WHEEL!" : "21 QUIZ!");
     } else if (k === "splitter" && !b.child && balls.length < MAX_BALLS) {
       for (const dx of [-1, 1]) Matter.Body.setVelocity(addBall(pegs[i].x + dx * 12, pegs[i].y - 4, true, b.total).body, { x: dx * 2.5, y: -1.5 });
       say(i, "SPLIT!");
@@ -294,25 +311,26 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     for (const [k, v] of flashes) v <= 1 ? flashes.delete(k) : flashes.set(k, v - 1);
   }
 
-  /** Pay out a captured ball at the popup's multiplier. */
-  function release(id: number, m: number) {
+  /** Settle a captured ball. A bonus is added and the ball drops back in; Pop Quiz pays the ball at its multiplier. */
+  function release(id: number, r: HoldResult) {
     const h = holds.findIndex((x) => x.id === id);
     if (h < 0) return;
     const [hold] = holds.splice(h, 1);
     const b = balls.find((x) => x.id === id)!;
     const p = pegs[hold.peg];
-    if (hold.kind === "blackjack") {
-      // the hand multiplies the ball, then it drops back in and keeps scoring until it hits a bucket
-      b.boost *= m;
-      b.held = false;
-      b.steps = 0;
-      texts.push({ x: p.x, y: p.y - 14, text: m ? `BALL x${m}!` : "BUST x0", kind: m ? "wild" : "minus", age: 0 });
-      Matter.Body.setPosition(b.body, { x: p.x + (rand() - 0.5) * 6, y: p.y + PEG_R + BALL_R + 2 });
-      Matter.Body.setVelocity(b.body, { x: (rand() - 0.5) * 2, y: 1.5 });
-      Matter.Composite.add(world, b.body);
-      return;
+    if (hold.kind === "quiz") {
+      const value = Math.round(hold.ballValue * Math.max(1, r.mult ?? 1));
+      skill += value - hold.ballValue;
+      return payout(b, p.x, p.y - 14, value, hold.ballValue);
     }
-    payout(b, m, p.x, p.y - 14, Math.round(hold.ballValue * m));
+    const bonus = (r.bonus ?? 0) + (r.skill ?? 0);
+    skill += r.skill ?? 0;
+    if (bonus > 0) pay(bonus, p.x, p.y - 14, hold.ballValue + bonus, hold.ballValue);
+    b.held = false;
+    b.steps = 0;
+    Matter.Body.setPosition(b.body, { x: p.x + (rand() - 0.5) * 6, y: p.y + PEG_R + BALL_R + 2 });
+    Matter.Body.setVelocity(b.body, { x: (rand() - 0.5) * 2, y: 1.5 });
+    Matter.Composite.add(world, b.body);
   }
 
   const finished = () => spawned >= opts.balls && holds.length === 0 && balls.every((b) => b.done);
@@ -338,6 +356,9 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     get chips() {
       return chips;
     },
+    get skill() {
+      return skill;
+    },
     get done() {
       return finished();
     },
@@ -352,7 +373,7 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
       auto = true; // any balls not dropped yet go down the middle
       let guard = 0;
       while (!finished() && guard++ < 20000) {
-        while (holds.length) release(holds[0].id, autoMultiplier(holds[0]));
+        while (holds.length) release(holds[0].id, autoResult(holds[0], opts.calm));
         tick();
       }
       return chips;

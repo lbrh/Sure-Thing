@@ -2,7 +2,7 @@
 
 What the first commit (`7da60fc`, "init: initialize project with basic configuration and structure") actually ships, and where it differs from the plans in docs 01 to 08. When a plan doc and this doc disagree, this doc describes the code as it is.
 
-Status as of 2 October 2026. `npm test` passes: 4 files, 45 tests.
+Status as of 2 October 2026. `npm test` passes: 4 files, 49 tests.
 
 ## 1. Summary
 
@@ -11,7 +11,7 @@ The full MVP loop works end to end, offline, from three hand-checked units: setu
 The biggest departures from the plan:
 
 1. **The look.** The planned "study lamp meets pachinko parlour" dark theme was replaced by a Windows 95 / early-web look (see section 6).
-2. **Casino imagery.** Roulette, Blackjack (playing cards) and a "MEGA HIT" strobe now exist. The plan and the guardrails (doc 08, rules 5 and 6) said none of this would. Doc 08 now records this as an open decision.
+2. **Casino imagery, since reskinned.** The first commit had Roulette, Blackjack (playing cards) and a "MEGA HIT" strobe. They are now the Prize Wheel Peg, the 21 Quiz Peg and a proportional cheer (doc 08, rules 5 and 6).
 3. **Shop prices are flat.** Each item has one fixed price. The new requirement is that prices rise as you earn more chips (doc 10, section 1). Not built yet.
 
 ## 2. Feature checklist against the MVP plan
@@ -73,16 +73,16 @@ The 0.36 scale was tuned with `tests/tuning.test.ts` so a mixed board pays 1.0 t
 | Magnet Peg | Next-Shift mod | 15 | Solid pegs pull in balls within 30 px and count the hit |
 | MEGA BUCKET | Next-Shift mod | 22 | Centre bucket x10 instead of x3 |
 | Earthquake | Next-Shift mod | 6 | Gravity sways side to side |
-| Roulette Peg | Permanent peg | 18 | Captures the ball and spins a 12-slot wheel: x0 (4 slots), x1 (3), x2 (2), x3, x5, x10. Average about x2.08 |
-| Blackjack Peg | Permanent peg | 20 | Captures the ball and deals a hand. Blackjack x5, win x3, push x1, lose or bust x0. A winning ball drops back in, keeps scoring, and the multiplier stacks with its bucket |
-| Pop Quiz Peg | Permanent peg | 12 | Captures the ball and asks a question from a concept you have seen. Right within 4 s pays x10, sliding to x2 at 20 s. Wrong pays x0. No mastery change |
+| Prize Wheel Peg | Permanent peg | 18 | Captures the ball and spins a 7-segment wheel: +1, +2, +2, +3, +3, +5, +8 chips (average 24/7). No zero, no stake: the ball keeps its value and drops back in. Calm mode pays +3 instantly |
+| 21 Quiz Peg | Permanent peg | 20 | Captures the ball for questions worth 2 to 10 by difficulty (value shown first). Hit or stand after each right answer. Each right answer pays 1. Hand bonus = hand / 3 rounded, doubled at exactly 21, lost on a wrong answer or over 21. The ball drops back in |
+| Pop Quiz Peg | Permanent peg | 12 | Captures the ball and asks a question from a concept you have seen. Right within 4 s pays x10, sliding to x2 at 20 s. Wrong keeps the ball at x1. No mastery change |
 | Splitter Peg | Permanent peg | 14 | Splits a ball into three. Copies keep what the original had earned. Cap 40 balls |
 | Black Hole | Permanent peg | 16 | Pulls balls within 80 px, warps them back to the top once, +2 for the trip |
 | Bumper | Permanent peg | 8 | Bigger peg that fires the ball away at speed |
 
 Shop layout: Skins (free), Study tools (always), and "Today's crazy offers": 3 items drawn by seeded shuffle from the Shift mods plus any permanent pegs you do not own yet. Offers rotate as you answer more questions. Permanent pegs take over neutral pegs, most central first, in purchase order. Next-Shift mods clear at the end of a Shift.
 
-Captured-ball pegs (Roulette, Blackjack, Pop Quiz) pay the ball's full value with no 0.36 scale, minimum 1, so a big multiplier feels big. Any payout at x5 or more fires "MEGA HIT": overlay, confetti, a seal squeak, a screen shake and an arpeggio.
+Pop Quiz pays the ball's full value with no 0.36 scale, minimum 1, so a big multiplier feels big. A payout that beats what the ball already had gets a cheer sized to the gain (ratio 2 or more NICE!, 4 or more SUPER DROP!, 8 or more MEGA HIT!). Only MEGA HIT! shakes the screen. Nothing strobes. Off in Calm mode.
 
 ## 5. Board physics details
 
@@ -106,7 +106,7 @@ Captured-ball pegs (Roulette, Blackjack, Pop Quiz) pay the ball's full value wit
 
 **Seal mascot.** A low-poly SVG seal in the corner rocks side to side, claps or slaps its belly every 5 to 10 s, claps on correct answers, slaps on a bomb, squeaks "GYUU!" on a MEGA HIT and when clicked. Other code cues it with `sealDo("clap" | "slap" | "gyuu")`.
 
-**Sound.** All synthesized: peg ticks per state, bucket, correct, wrong, a tick-tick-thud bomb, a snip for defuse, roulette ticks, card flips, a boing, and a five-note "mega" arpeggio. Off in Calm mode.
+**Sound.** All synthesized: peg ticks per state, bucket, correct, wrong, a tick-tick-thud bomb, a snip for defuse, wheel ticks, a boing, and a five-note arpeggio for SUPER DROP! and MEGA HIT!. Off in Calm mode.
 
 ## 7. Tech as built
 
@@ -132,7 +132,7 @@ Data model additions: `Attempt.exam` marks Exam Day answers. The store adds `Ses
 |---|---|
 | `tests/engine.test.ts` | Bet table, honest confidence is optimal, Leitner moves, interval cap, targeting, retest picks a new question, calibration, readiness, seeded bank shape, unit name routing |
 | `tests/golden.test.ts` | Setup to Shift to Shop to Exam Day to Report, daily cap, flagging, streak multiplier, resuming mid-Shift and mid-question |
-| `tests/minigames.test.ts` | Blackjack hand values and autoplay, roulette slots and average, Pop Quiz speed curve |
+| `tests/minigames.test.ts` | Prize Wheel segments, expected value and Calm mode payout, 21 Quiz values and bonus, Pop Quiz speed curve, proportional cheers |
 | `tests/tuning.test.ts` | Economy tuning, special pegs, MEGA BUCKET, click-to-drop, wall fairness, grazes |
 
 `npm run tune` runs only the tuning sim.
@@ -140,7 +140,7 @@ Data model additions: `Attempt.exam` marks Exam Day answers. The store adds `Ses
 ## 9. Known gaps and follow-ups
 
 1. Shop prices do not scale. See doc 10 section 1.
-2. Casino imagery decision is open. See doc 08 section 1.
+2. Casino imagery: decided, reskinned as game show props. See doc 08 section 1.
 3. Hint and Wide Catcher (doc 02 section 4.7 stretch items) were not built. Magnet moved from "always on sale" to the rotating offers.
 4. The daily cap counts Shifts started, not finished.
 5. Flags are stored on the device only, so they do not improve a shared bank.

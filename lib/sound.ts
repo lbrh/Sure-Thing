@@ -66,7 +66,6 @@ export const sfx = {
     tone(state === "bomb" ? 180 : state === "solid" ? 880 : 620, 0.05, "triangle", 0.03);
   },
   tick: () => tone(1500, 0.015, "square", 0.02),
-  card: () => tone(500, 0.04, "triangle", 0.04),
   mega: () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.18, "square", 0.04, i * 0.07)),
   bucket: () => tone(330, 0.12, "sine", 0.05),
   correct: () => tone(660, 0.12, "sine", 0.05),

@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Window } from "./ui";
 import { useGame, type ShopItem } from "@/lib/store";
-import { rng } from "@/lib/engine";
-import type { Hold } from "@/lib/board";
-import { BJ_MULT, deal, handValue, hit, quizMultiplier, QUIZ_FAST_MS, QUIZ_SLOW_MS, RANKS, ROULETTE, rouletteSlot, stand, SUITS, type BJ, type Card } from "@/lib/minigames";
+import { rng, type Question } from "@/lib/engine";
+import { wheelResult, type Hold, type HoldResult } from "@/lib/board";
+import { PRIZE_WHEEL, q21Bonus, Q21_TARGET, q21Worth, quizMultiplier, QUIZ_FAST_MS, QUIZ_SLOW_MS, wheelOdds } from "@/lib/minigames";
 import { sfx } from "@/lib/sound";
 
 /** Every shop item: copy, the popup's window name, and the odds shown before you buy. */
@@ -15,9 +15,9 @@ export const ITEM_INFO: Record<ShopItem, { name: string; effect: string; joke: s
   magnet: { kind: "shift", name: "Magnet Peg", effect: "Next Shift: solid pegs pull in balls that pass close by.", joke: "Knowledge is attractive. Literally, this once." },
   mega: { kind: "shift", name: "MEGA BUCKET", effect: "Next Shift: the centre bucket pays x10 instead of x3.", joke: "The middle path, but make it absurd.", odds: "Centre bucket x10. Others unchanged." },
   quake: { kind: "shift", name: "Earthquake", effect: "Next Shift: gravity sways side to side. Total chaos, same odds for everyone.", joke: "The board is having a day." },
-  roulette: { kind: "peg", name: "Roulette Peg", effect: "Grabs the ball and spins ROULETTE.EXE. The wheel sets that ball's multiplier.", joke: "Round and round she goes.", odds: `12 slots: x0 ×4, x1 ×3, x2 ×2, x3, x5, x10. Average x${(ROULETTE.reduce((a, b) => a + b) / 12).toFixed(2)}` },
-  blackjack: { kind: "peg", name: "Blackjack Peg", effect: "Grabs the ball and deals you a hand of BLACKJACK.EXE. Win and the ball drops back in multiplied, still scoring pegs, and the multiplier stacks with its bucket.", joke: "The dealer stands on 17. The dealer is also a peg.", odds: "Ball x5 for blackjack · x3 for a win · x1 push · x0 lose or bust. Applied when it lands." },
-  quiz: { kind: "peg", name: "Pop Quiz Peg", effect: "Grabs the ball and fires a question from your unit. The faster you get it right, the bigger the multiplier.", joke: "Even the chaos makes you revise. Quickly.", odds: `Right within ${QUIZ_FAST_MS / 1000}s x10, sliding to x2 by ${QUIZ_SLOW_MS / 1000}s · Wrong x0. No mastery change.` },
+  wheel: { kind: "peg", name: "Prize Wheel Peg", effect: "Catches the ball and spins the PRIZE WHEEL for bonus chips. The ball keeps its value and drops back in. Nothing is at stake.", joke: "Big money! No money. Just chips.", odds: wheelOdds(PRIZE_WHEEL) },
+  quiz21: { kind: "peg", name: "21 Quiz Peg", effect: "Catches the ball for a quick quiz. Each question is worth 2 to 10 by difficulty, shown first. After each right answer, hit for another or stand. Go over 21 or miss one and only the hand bonus is lost. Every right answer still pays 1.", joke: "Pontoon, but it's a pop quiz.", odds: "Bonus = hand / 3, rounded. Exactly 21 doubles it. No chance involved once you see the next question's value." },
+  quiz: { kind: "peg", name: "Pop Quiz Peg", effect: "Catches the ball and fires a question from your unit. The faster you get it right, the bigger the multiplier.", joke: "Even the chaos makes you revise. Quickly.", odds: `Right within ${QUIZ_FAST_MS / 1000}s x10, sliding to x2 by ${QUIZ_SLOW_MS / 1000}s · Wrong keeps the ball at x1. No mastery change.` },
   splitter: { kind: "peg", name: "Splitter Peg", effect: "Splits a ball into three. The copies keep what the original had earned so far.", joke: "Mitosis, but for points." },
   blackhole: { kind: "peg", name: "Black Hole", effect: "Sucks nearby balls in and warps them back to the top for another run, +2 for the trip.", joke: "Spaghettification sold separately." },
   bumper: { kind: "peg", name: "Bumper", effect: "A big pinball bumper. BOING.", joke: "Some pegs just want to be loud." },
@@ -25,34 +25,35 @@ export const ITEM_INFO: Record<ShopItem, { name: string; effect: string; joke: s
 
 /* ---------- popups for captured balls ---------- */
 
-export function HoldModal({ hold, onDone, sound }: { hold: Hold; onDone: (mult: number) => void; sound: boolean }) {
-  const title = hold.kind === "roulette" ? "ROULETTE.EXE" : hold.kind === "blackjack" ? "BLACKJACK.EXE" : "POPQUIZ.EXE";
+const TITLES = { wheel: "PRIZE_WHEEL.EXE", quiz21: "21_QUIZ.EXE", quiz: "POPQUIZ.EXE" } as const;
+
+export function HoldModal({ hold, onDone, sound, reduced }: { hold: Hold; onDone: (r: HoldResult) => void; sound: boolean; reduced: boolean }) {
+  const title = TITLES[hold.kind];
   return (
     <div className="modal-scrim" role="dialog" aria-modal="true" aria-label={title}>
-      <Window title={title} tone={hold.kind === "quiz" ? "ok" : "alert"}>
-        <p className="counter">
-          {hold.kind === "blackjack" ? "WIN AND THE BALL DROPS ON, MULTIPLIED" : `BALL WORTH ${hold.ballValue} · PAYOUT = BALL × MULTIPLIER`}
-        </p>
-        {hold.kind === "roulette" && <Roulette seed={hold.seed} onDone={onDone} sound={sound} worth={hold.ballValue} />}
-        {hold.kind === "blackjack" && <Blackjack seed={hold.seed} onDone={onDone} sound={sound} worth={hold.ballValue} />}
-        {hold.kind === "quiz" && <Quiz seed={hold.seed} onDone={onDone} worth={hold.ballValue} />}
+      <Window title={title} tone={hold.kind === "wheel" ? "alert" : "ok"}>
+        <p className="counter">BALL WORTH {hold.ballValue} · {hold.kind === "quiz" ? "PAYOUT = BALL × MULTIPLIER" : "KEEPS ITS VALUE, BONUS ON TOP"}</p>
+        {hold.kind === "wheel" && <PrizeWheel hold={hold} onDone={onDone} sound={sound} reduced={reduced} />}
+        {hold.kind === "quiz21" && <Quiz21 seed={hold.seed} onDone={onDone} sound={sound} />}
+        {hold.kind === "quiz" && <Quiz seed={hold.seed} onDone={(m) => onDone({ mult: m })} worth={hold.ballValue} />}
       </Window>
     </div>
   );
 }
 
-const WHEEL_COLORS: Record<number, string> = { 0: "#000000", 1: "#0000ff", 2: "#00aa00", 3: "#ff0000", 5: "#ff00ff", 10: "#ff8000" };
+const WHEEL_COLORS = ["#0000ff", "#00aa00", "#ff00ff", "#ff8000", "#008080", "#800080", "#ff0000", "#808000"];
 
-const pays = (worth: number, m: number) => ` = +${Math.round(worth * m)}`;
-
-function Roulette({ seed, onDone, sound, worth }: { seed: number; onDone: (m: number) => void; sound: boolean; worth: number }) {
-  const slot = rouletteSlot(rng(seed)()); // same outcome Skip would give
-  const n = ROULETTE.length;
+function PrizeWheel({ hold, onDone, sound, reduced }: { hold: Hold; onDone: (r: HoldResult) => void; sound: boolean; reduced: boolean }) {
+  const segs = hold.segments;
+  const prize = wheelResult(hold); // same outcome Skip would give
+  const slot = segs.indexOf(prize);
+  const n = segs.length;
   const [angle, setAngle] = useState(0);
-  const [stopped, setStopped] = useState(false);
-  const gradient = `conic-gradient(${ROULETTE.map((m, i) => `${WHEEL_COLORS[m]} ${(i * 360) / n}deg ${((i + 1) * 360) / n}deg`).join(",")})`;
+  const [stopped, setStopped] = useState(reduced);
+  const gradient = `conic-gradient(${segs.map((_, i) => `${WHEEL_COLORS[i % WHEEL_COLORS.length]} ${(i * 360) / n}deg ${((i + 1) * 360) / n}deg`).join(",")})`;
 
   useEffect(() => {
+    if (reduced) return setAngle(-(slot * 360) / n - 180 / n);
     const id = requestAnimationFrame(() => setAngle(360 * 6 - (slot * 360) / n - 180 / n));
     const ticks = sound ? Array.from({ length: 18 }, (_, i) => setTimeout(sfx.tick, 2400 * (1 - (1 - i / 18) ** 2))) : [];
     const stop = setTimeout(() => setStopped(true), 2500);
@@ -61,106 +62,141 @@ function Roulette({ seed, onDone, sound, worth }: { seed: number; onDone: (m: nu
       ticks.forEach(clearTimeout);
       clearTimeout(stop);
     };
-  }, [slot, n, sound]);
+  }, [slot, n, sound, reduced]);
 
   return (
     <>
       <div className="wheel-wrap">
         <div className="pointer" />
         <div className="wheel" style={{ background: gradient, transform: `rotate(${angle}deg)` }}>
-          {ROULETTE.map((m, i) => {
+          {segs.map((m, i) => {
             const a = ((i + 0.5) * 2 * Math.PI) / n;
             return (
-              <span key={i} style={{ transform: `translate(${Math.sin(a) * 88}px, ${-Math.cos(a) * 88}px)` }}>
-                <b>x{m}</b>
+              <span key={i} style={{ transform: `translate(${Math.sin(a) * 84}px, ${-Math.cos(a) * 84}px)` }}>
+                <b>+{m}</b>
               </span>
             );
           })}
           <div className="hub-dot" />
         </div>
       </div>
-      <p className="odds-list">{ITEM_INFO.roulette.odds}</p>
+      <p className="odds-list">ODDS: {wheelOdds(segs)}</p>
       {stopped ? (
         <>
-          <p className="result-big rainbow">x{ROULETTE[slot]}!{pays(worth, ROULETTE[slot])}</p>
-          <button className="btn success big" onClick={() => onDone(ROULETTE[slot])} autoFocus>
+          <p className="result-big">+{prize} BONUS</p>
+          <button className="btn success big" onClick={() => onDone({ bonus: prize })} autoFocus>
             OK
           </button>
         </>
       ) : (
-        <p className="center mono blink">SPINNING...</p>
+        <p className="center mono">SPINNING...</p>
       )}
     </>
   );
 }
 
-function CardFace({ card, hidden }: { card: Card; hidden?: boolean }) {
-  if (hidden) return <div className="card-face back" aria-label="Face-down card" />;
-  const red = card.suit === 1 || card.suit === 2;
-  return (
-    <div className={`card-face ${red ? "red" : ""}`} aria-label={`${RANKS[card.rank]} ${SUITS[card.suit]}`}>
-      {RANKS[card.rank]}
-      {SUITS[card.suit]}
-    </div>
-  );
-}
-
-const BJ_TEXT = { blackjack: "BLACKJACK!!!", win: "YOU WIN!", push: "PUSH.", lose: "DEALER WINS.", bust: "BUST!" };
-
-function Blackjack({ seed, onDone, sound, worth }: { seed: number; onDone: (m: number) => void; sound: boolean; worth: number }) {
-  const [g, setG] = useState<BJ>(() => deal(seed));
-  const act = (f: (b: BJ) => BJ) => {
-    if (sound) sfx.card();
-    setG(f);
-  };
-  return (
-    <>
-      <p className="caps">Dealer {g.result ? `(${handValue(g.dealer)})` : ""}</p>
-      <div className="cards">
-        {g.dealer.map((c, i) => (
-          <CardFace key={i} card={c} hidden={i === 1 && !g.result} />
-        ))}
-      </div>
-      <p className="caps">You ({handValue(g.player)})</p>
-      <div className="cards">
-        {g.player.map((c, i) => (
-          <CardFace key={i} card={c} />
-        ))}
-      </div>
-      <p className="odds-list">{ITEM_INFO.blackjack.odds}</p>
-      {g.result ? (
-        <>
-          <p className={`result-big ${g.result === "blackjack" || g.result === "win" ? "rainbow" : ""}`}>
-            {BJ_TEXT[g.result]} BALL x{BJ_MULT[g.result]}
-          </p>
-          <p className="small center">{BJ_MULT[g.result] ? "It drops back in and keeps scoring. The multiplier stacks with its bucket." : "The ball drops on, worth nothing."}</p>
-          <button className="btn success big" onClick={() => onDone(BJ_MULT[g.result!])} autoFocus>
-            OK
-          </button>
-        </>
-      ) : (
-        <div className="row">
-          <button className="btn primary" style={{ flex: 1 }} onClick={() => act(hit)} autoFocus>
-            Hit
-          </button>
-          <button className="btn danger" style={{ flex: 1 }} onClick={() => act(stand)}>
-            Stand
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
-
-function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => void; worth: number }) {
+/** Questions for popups: from concepts you've seen, never flagged ones. */
+function usePopupPool() {
   const questions = useGame((s) => s.questions);
   const attempts = useGame((s) => s.attempts);
   const flagged = useGame((s) => s.flagged);
-  const q = useMemo(() => {
+  return useMemo(() => {
     const seen = new Set(attempts.map((a) => a.conceptId));
-    const pool = questions.filter((x) => !flagged.includes(x.id) && (seen.size === 0 || seen.has(x.conceptId)));
-    return pool[Math.floor(rng(seed)() * pool.length)];
-  }, [questions, attempts, flagged, seed]);
+    return questions.filter((x) => !flagged.includes(x.id) && (seen.size === 0 || seen.has(x.conceptId)));
+  }, [questions, attempts, flagged]);
+}
+
+function Quiz21({ seed, onDone, sound }: { seed: number; onDone: (r: HoldResult) => void; sound: boolean }) {
+  const pool = usePopupPool();
+  // the whole draw is fixed by the seed, so the next question's value is known before you hit
+  const draws = useMemo(() => {
+    const rand = rng(seed);
+    const order = pool.map((q) => ({ q, r: rand() })).sort((a, b) => a.r - b.r).map((x) => x.q);
+    return order.slice(0, 8).map((q: Question) => ({ q, worth: q21Worth(q.difficulty, rand()) }));
+  }, [pool, seed]);
+  const [i, setI] = useState(0);
+  const [hand, setHand] = useState<number[]>([]);
+  const [right, setRight] = useState(0);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [end, setEnd] = useState<"stand" | "bust" | null>(null);
+  const total = hand.reduce((a, b) => a + b, 0);
+
+  if (draws.length === 0) return <button className="btn big" onClick={() => onDone({})} autoFocus>OK</button>;
+  const cur = draws[i];
+  const answer = (id: string) => {
+    if (picked) return;
+    setPicked(id);
+    if (sound) sfx.tick();
+    if (id !== cur.q.correct) return setEnd("bust");
+    const next = [...hand, cur.worth];
+    const t = next.reduce((a, b) => a + b, 0);
+    setHand(next);
+    setRight((r) => r + 1);
+    if (t > Q21_TARGET) setEnd("bust");
+    else if (t === Q21_TARGET || i + 1 >= draws.length) setEnd("stand");
+  };
+  const hit = () => {
+    setI(i + 1);
+    setPicked(null);
+  };
+  const bonus = q21Bonus(total, end === "bust");
+  const nextWorth = draws[i + 1]?.worth;
+
+  return (
+    <>
+      <p className="odds-list">{ITEM_INFO.quiz21.odds}</p>
+      <div className="row between">
+        <div className="q21-hand" aria-label={`Hand ${total}`}>
+          {hand.map((w, k) => (
+            <span key={k} className="q21-chip">{w}</span>
+          ))}
+        </div>
+        <span className="counter big"><span className="lbl">HAND</span>{total}/21</span>
+      </div>
+      {!end && (
+        <>
+          <p className="mono">THIS QUESTION IS WORTH {cur.worth} (DIFFICULTY {cur.q.difficulty})</p>
+          <p className="stem">{cur.q.stem}</p>
+          <div className="options">
+            {cur.q.options.map((o) => (
+              <button key={o.id} role="radio" aria-checked={picked === o.id} disabled={picked !== null} className="btn option" onClick={() => answer(o.id)}>
+                <span className="letter">{o.id}</span>
+                <span>{o.text}</span>
+              </button>
+            ))}
+          </div>
+          {picked && (
+            <>
+              <p className="small">Right! +1. {nextWorth !== undefined && `Next question is worth ${nextWorth}${total + nextWorth > Q21_TARGET ? `, which would take you over ${Q21_TARGET}` : ""}.`}</p>
+              <div className="row">
+                <button className="btn primary" style={{ flex: 1 }} onClick={hit} autoFocus>Hit</button>
+                <button className="btn" style={{ flex: 1 }} onClick={() => setEnd("stand")}>Stand</button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+      {end && (
+        <>
+          <p className="result-big">
+            {end === "bust" ? "HAND BONUS BUSTED" : total === Q21_TARGET ? "EXACTLY 21! BONUS DOUBLED" : "STOOD"}
+          </p>
+          {picked && picked !== cur.q.correct && (
+            <p className="answer-line">Answer: <strong>{cur.q.correct}. {cur.q.options.find((o) => o.id === cur.q.correct)?.text}</strong></p>
+          )}
+          <p className="mono center">+{right} FOR RIGHT ANSWERS · +{bonus} HAND BONUS</p>
+          <button className="btn success big" onClick={() => onDone({ skill: right, bonus })} autoFocus>OK</button>
+        </>
+      )}
+    </>
+  );
+}
+
+const pays = (worth: number, m: number) => ` = +${Math.round(worth * m)}`;
+
+function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => void; worth: number }) {
+  const pool = usePopupPool();
+  const q = useMemo(() => pool[Math.floor(rng(seed)() * pool.length)], [pool, seed]);
   const [picked, setPicked] = useState<string | null>(null);
   const [took, setTook] = useState(0); // ms on the clock: live until you answer, then frozen
   const started = useRef(0);
@@ -174,7 +210,7 @@ function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => vo
   if (!q) return <button className="btn big" onClick={() => onDone(1)} autoFocus>OK</button>;
   const right = picked === q.correct;
   const bonus = quizMultiplier(took);
-  const mult = picked ? (right ? bonus : 0) : bonus;
+  const mult = picked ? (right ? bonus : 1) : bonus;
   const drained = Math.min(1, Math.max(0, (took - QUIZ_FAST_MS) / (QUIZ_SLOW_MS - QUIZ_FAST_MS)));
   const answer = (id: string) => {
     if (picked) return;
@@ -186,7 +222,7 @@ function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => vo
       <p className="odds-list">{ITEM_INFO.quiz.odds}</p>
       <div className="row between">
         <span className={`counter big ${!picked && bonus >= 8 ? "blink" : ""}`} aria-live="off">
-          <span className="lbl">SPEED BONUS</span>x{right || !picked ? bonus : 0}
+          <span className="lbl">SPEED BONUS</span>x{right || !picked ? bonus : 1}
         </span>
         <span className="mono">{(took / 1000).toFixed(1)}s</span>
       </div>
@@ -213,7 +249,7 @@ function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => vo
       {picked && (
         <>
           <p className={`result-big ${right ? "rainbow" : ""}`}>
-            {right ? `CORRECT IN ${(took / 1000).toFixed(1)}s! x${mult}${pays(worth, mult)}` : "NOPE. x0"}
+            {right ? `CORRECT IN ${(took / 1000).toFixed(1)}s! x${mult}${pays(worth, mult)}` : `NOT THIS TIME. BALL KEEPS x1${pays(worth, 1)}`}
           </p>
           {!right && (
             <p className="answer-line">
@@ -230,16 +266,16 @@ function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => vo
   );
 }
 
-/* ---------- MEGA HIT: shake + strobe ---------- */
+/* ---------- Cheer: sized to the payout, never for an outcome no better than what you had ---------- */
 
-export function MegaOverlay({ mult, value, chips }: { mult: number; value: number; chips: string }) {
+const CHEER = ["", "NICE!", "SUPER DROP!", "MEGA HIT!"];
+
+export function CheerOverlay({ level, value, chips }: { level: 1 | 2 | 3; value: number; chips: string }) {
   return (
-    <div className="mega" role="status" aria-live="assertive">
-      <p className="mega-text">
-        MEGA HIT!!!
-        <small>
-          x{mult} · +{value} {chips}
-        </small>
+    <div className={`cheer lvl${level}`} role="status" aria-live="polite">
+      <p className="cheer-text">
+        {CHEER[level]}
+        <small>+{value} {chips}</small>
       </p>
     </div>
   );

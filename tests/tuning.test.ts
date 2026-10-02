@@ -42,22 +42,22 @@ describe("economy tuning", () => {
 });
 
 describe("crazy modifiers", () => {
-  const wild = placeSpecials(pegs, ["roulette", "blackjack", "quiz", "splitter", "blackhole", "bumper"]);
+  const wild = placeSpecials(pegs, ["wheel", "quiz21", "quiz", "splitter", "blackhole", "bumper"]);
   it("places every special on a neutral peg", () => {
     const sp = wild.filter((p) => p.special);
     expect(sp).toHaveLength(6);
     expect(sp.every((p) => !p.conceptId)).toBe(true);
   });
   it("a fully loaded chaos board always finishes and pays more", () => {
-    let chips = 0, megas = 0;
+    let chips = 0, cheers = 0;
     for (let s = 1; s <= 60; s++) {
       const d = createDrop(wild, mixed, { balls: 6, seed: s, quake: true, mega: true });
       chips += d.resolve();
       expect(d.done).toBe(true);
-      megas += d.events.filter((e) => e.type === "mega").length;
+      cheers += d.events.filter((e) => e.type === "cheer").length;
     }
     expect(chips / 360).toBeGreaterThan(r.mixed);
-    expect(megas).toBeGreaterThan(0);
+    expect(cheers).toBeGreaterThan(0);
   });
   it("mega bucket beats the normal centre", () => {
     let normal = 0, mega = 0;

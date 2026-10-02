@@ -21,19 +21,19 @@ What the build ships and how it differs from the plans: [`docs/09-build-status.m
 |---|---|
 | `lib/engine.ts` | Scoring, Leitner mastery, draw priority, calibration, readiness, streak multiplier (pure functions) |
 | `lib/board.ts` | Matter.js board: peg layout, shop pegs, 7 aimable chutes, seeded drops, Skip resolves the same sim instantly |
-| `lib/minigames.ts` | Roulette wheel, Blackjack hands, Pop Quiz speed bonus (pure, seeded) |
+| `lib/minigames.ts` | Prize Wheel, 21 Quiz, Pop Quiz speed bonus, proportional cheers (pure) |
 | `lib/store.ts` | Zustand store persisted to localStorage: the whole game loop, shop, resume mid-Shift |
 | `lib/loadUnit.ts` | Routes unit names to seeded banks, otherwise live generation with fallback |
 | `lib/ai.ts`, `app/api/*` | Live generation (`claude-sonnet-5-5`) plus independent solve check (`claude-haiku-4-5`), zod-validated, rate-limited |
 | `lib/copy.ts`, `lib/sound.ts` | The Collector's lines and Calm mode wording; synthesized sound effects |
 | `components/App.tsx` | Screens: Setup, Intro, Hub, Draw, Question and Bet, Reveal with Drop, Summary, Settings |
-| `components/Shop.tsx`, `Mods.tsx`, `Report.tsx`, `Board.tsx` | Shop and skins; shop item copy and the Roulette, Blackjack and Pop Quiz popups; Readiness Report; canvas board |
+| `components/Shop.tsx`, `Mods.tsx`, `Report.tsx`, `Board.tsx` | Shop and skins; shop item copy and the Prize Wheel, 21 Quiz and Pop Quiz popups; Readiness Report; canvas board |
 | `components/Chaos.tsx`, `Seal.tsx`, `ui.tsx` | MAXIMUM CHAOS skin layer; seal mascot; Win95 window and counter primitives |
 | `data/*.json` | Seeded banks |
 
 ## Crazy shop
 
-Board pegs (permanent): **Roulette** (spins ROULETTE.EXE, 12-slot wheel x0 to x10), **Blackjack** (play a hand, win x3, blackjack x5), **Pop Quiz** (answer a question from your unit for x5), **Splitter**, **Black Hole**, **Bumper**. Next-Shift mods: **MEGA BUCKET** (centre x10), **Earthquake**, **Magnet**. Any x5+ payout shakes the screen and strobes MEGA HIT. Odds are shown before buying. Calm mode and reduced motion turn the popups, strobe and shake off (popups auto-play with the same outcomes as Skip).
+Board pegs (permanent): **Prize Wheel** (spins after a catch, +1 to +8 chips, no zero, no stake), **21 Quiz** (hit or stand on questions worth 2 to 10), **Pop Quiz** (answer fast for up to x10), **Splitter**, **Black Hole**, **Bumper**. Next-Shift mods: **MEGA BUCKET** (centre x10), **Earthquake**, **Magnet**. Payouts that beat what the ball had get a cheer sized to the gain. Odds are shown before buying. In Calm mode the wheel pays its average instantly and nothing flashes or shakes.
 
 ## Streaks and aiming
 
@@ -51,7 +51,7 @@ A low-poly seal (`components/Seal.tsx`, pure SVG + CSS) lives in the corner. It 
 
 - **Cookie Clicker style progression (requirement):** shop prices rise as you earn more chips, so there is always something to save for. See [`docs/10-progression-and-inspiration.md`](docs/10-progression-and-inspiration.md).
 - **Ideas from Peggle and casino games:** target pegs, a free-ball bucket, power pegs, Keno-style calibration bets and more, each checked against the guardrails. Same doc.
-- **Open decision:** keep, reskin or cut the Roulette and Blackjack pegs ([`docs/08-risks-and-guardrails.md`](docs/08-risks-and-guardrails.md), section 1).
+- **Decided:** the Roulette and Blackjack pegs were reskinned as the Prize Wheel and 21 Quiz pegs ([`docs/08-risks-and-guardrails.md`](docs/08-risks-and-guardrails.md), section 1).
 
 ## Demo path
 
