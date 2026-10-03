@@ -19,7 +19,8 @@ What the build ships and how it differs from the plans: [`docs/09-build-status.m
 
 | Path | What |
 |---|---|
-| `lib/engine.ts` | Scoring, Leitner mastery, draw priority, calibration, readiness, streak multiplier (pure functions) |
+| `lib/engine.ts` | Leitner mastery, draw priority, calibration, readiness, Readiness Odds, streak multiplier (pure functions) |
+| `lib/economy.ts` | Bet table and Ledger debt, calibration grade, skill share, shop prices, Ledger Pot, Peg Hands, Bingo, Keno, Mastery Marks, relics, Stakes (pure functions) |
 | `lib/board.ts` | Matter.js board: peg layout, shop pegs, 7 aimable chutes, seeded drops, Skip resolves the same sim instantly |
 | `lib/minigames.ts` | Prize Wheel, 21 Quiz, Pop Quiz speed bonus, proportional cheers (pure) |
 | `lib/store.ts` | Zustand store persisted to localStorage: the whole game loop, shop, resume mid-Shift |
@@ -27,6 +28,7 @@ What the build ships and how it differs from the plans: [`docs/09-build-status.m
 | `lib/ai.ts`, `app/api/*` | Live generation (`claude-sonnet-5-5`) plus independent solve check (`claude-haiku-4-5`), zod-validated, rate-limited |
 | `lib/copy.ts`, `lib/sound.ts` | The Collector's lines and Calm mode wording; synthesized sound effects |
 | `components/App.tsx` | Screens: Setup, Intro, Hub, Draw, Question and Bet, Reveal with Drop, Summary, Settings |
+| `components/Knowledge.tsx`, `Meta.tsx` | Concept Bingo, Calibration Keno, Go Deeper, Mystery Facts, scratch Report Card; Legacy Draft, Collector's journal, achievements |
 | `components/Shop.tsx`, `Mods.tsx`, `Report.tsx`, `Board.tsx` | Shop and skins; shop item copy and the Prize Wheel, 21 Quiz and Pop Quiz popups; Readiness Report; canvas board |
 | `components/Chaos.tsx`, `Seal.tsx`, `ui.tsx` | MAXIMUM CHAOS skin layer; seal mascot; Win95 window and counter primitives |
 | `data/*.json` | Seeded banks |
@@ -56,3 +58,5 @@ A low-poly seal (`components/Seal.tsx`, pure SVG + CSS) lives in the corner. It 
 ## Demo path
 
 Build the board, start a Shift, pick **NULL handling**, answer **A** with **Certain**: bomb planted. It comes back about 3 questions later for a retest with a different question. After the Shift, buy a Defuser or play on, then run Exam Day and open the Report.
+
+Research behind the October 2026 economy and progression upgrade: [`docs/11-research-findings.md`](docs/11-research-findings.md).
