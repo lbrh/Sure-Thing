@@ -3,12 +3,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
-  daysUntil, drawOffer, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
+  daysUntil, drawOffer, pegState, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
   type Attempt, type Concept, type ConceptState, type Confidence, type ExamResult, type OptionId, type Question,
 } from "./engine";
 import { LINES } from "./copy";
-import { betOutcome, calibrationBonus, calibrationGap, calibrationGrade } from "./economy";
-import type { SpecialKind } from "./board";
+import {
+  betOutcome, calibrationBonus, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
+  type PriceCtx,
+} from "./economy";
+import type { OwnedPeg, SpecialKind } from "./board";
 
 export type Screen = "setup" | "intro" | "hub" | "draw" | "question" | "reveal" | "board" | "summary" | "shop" | "report" | "settings";
 export type SessionKind = "shift" | "defuse" | "exam";
@@ -18,10 +21,6 @@ export type ShopItem = "secondChance" | "defuser" | ShiftMod | SpecialKind;
 export const SHIFT_LENGTH = 8;
 export const EXAM_LENGTH = 10;
 export const START_CHIPS = 5;
-export const PRICES: Record<ShopItem, number> = {
-  secondChance: 8, defuser: 10, magnet: 15, mega: 22, quake: 6,
-  wheel: 18, quiz21: 20, quiz: 12, splitter: 14, blackhole: 16, bumper: 8,
-};
 /** Pegs renamed by the game-show reskin, for old saves. */
 const RENAMED: Record<string, SpecialKind> = { roulette: "wheel", blackjack: "quiz21" };
 export const SHIFT_MODS: ShiftMod[] = ["magnet", "mega", "quake"];
@@ -54,6 +53,7 @@ export interface Session {
   chanceChips: number; // from buckets, the wheel and other specials
   debtAdded: number;
   calBonus?: number; // paid at the end of a Shift
+  interest?: number;
   bombsPlanted: string[];
   bombsDefused: string[];
   readinessBefore: number;
@@ -104,7 +104,8 @@ interface Data {
   attempts: Attempt[];
   chips: number;
   debt: number; // Ledger debt: no floor, never comes out of chips
-  inventory: { secondChance: number; magnet: boolean; mega: boolean; quake: boolean; pegs: SpecialKind[] };
+  inventory: { secondChance: number; magnet: boolean; mega: boolean; quake: boolean; pegs: OwnedPeg[] };
+  shop: ShopState;
   settings: Settings;
   shiftsDone: number;
   shiftLog: { date: string; count: number };
@@ -117,7 +118,15 @@ interface Data {
   line: string;
 }
 
+export interface ShopState {
+  boughtThisRun: Partial<Record<ShopItem, number>>;
+  usesThisShift: Partial<Record<ShopItem, number>>;
+  rerolls: number; // this Shift
+  shiftIncome: number[]; // chips earned per finished Shift, for the income index
+}
+
 interface Actions {
+  reroll(): void;
   setup(unit: Unit, concepts: Concept[], questions: Question[]): void;
   go(screen: Screen): void;
   startShift(): void;
@@ -144,6 +153,7 @@ const initial: Data = {
   chips: START_CHIPS,
   debt: 0,
   inventory: { secondChance: 0, magnet: false, mega: false, quake: false, pegs: [] },
+  shop: { boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] },
   settings: { skin: "retro", calm: false, dailyCap: 6, sound: true, reducedMotion: false },
   shiftsDone: 0,
   shiftLog: { date: "", count: 0 },
@@ -181,14 +191,20 @@ export const useGame = create<Data & Actions>()(
         const drop = Math.max(0, ready() - session.readinessBefore);
         // calibration pays: a Shift ends with 3 chips per calibration grade point (last 20 answers)
         const calBonus = session.kind === "shift" ? calibrationBonus(calibrationGrade(calibrationGap(get().attempts))) : 0;
-        set((s) => ({
-          chips: s.chips + calBonus,
-          session: { ...session, finished: true, calBonus, skillChips: (session.skillChips ?? 0) + calBonus, chipsEarned: session.chipsEarned + calBonus },
-          screen: "summary",
-          line: LINES.endShift(drop),
-          shiftsDone: s.shiftsDone + (session.kind === "shift" ? 1 : 0),
-          inventory: session.kind === "shift" ? { ...s.inventory, magnet: false, mega: false, quake: false } : s.inventory,
-        }));
+        const shift = session.kind === "shift";
+        set((s) => {
+          // interest: +1 per 10 chips held at the end of a Shift, capped at +3
+          const paid = shift ? interest(s.chips + calBonus) : 0;
+          return {
+            chips: s.chips + calBonus + paid,
+            session: { ...session, finished: true, calBonus, interest: paid, skillChips: (session.skillChips ?? 0) + calBonus, chipsEarned: session.chipsEarned + calBonus },
+            screen: "summary",
+            line: LINES.endShift(drop),
+            shiftsDone: s.shiftsDone + (shift ? 1 : 0),
+            inventory: shift ? { ...s.inventory, magnet: false, mega: false, quake: false } : s.inventory,
+            shop: shift ? { ...s.shop, usesThisShift: {}, rerolls: 0, shiftIncome: [...s.shop.shiftIncome, session.chipsEarned + calBonus] } : s.shop,
+          };
+        });
       };
 
       const next = (session: Session) => {
@@ -355,17 +371,33 @@ export const useGame = create<Data & Actions>()(
 
         buy(item, conceptId) {
           const s = get();
-          const price = PRICES[item];
+          const ctx = priceCtx(s);
+          const { price } = priceOf(item, ctx);
           if (s.chips < price) return;
-          if (item === "secondChance") set({ chips: s.chips - price, inventory: { ...s.inventory, secondChance: s.inventory.secondChance + 1 } });
-          if ((SHIFT_MODS as ShopItem[]).includes(item) && !s.inventory[item as ShiftMod])
-            set({ chips: s.chips - price, inventory: { ...s.inventory, [item]: true } });
-          if ((SPECIALS as ShopItem[]).includes(item) && !s.inventory.pegs.includes(item as SpecialKind))
-            set({ chips: s.chips - price, inventory: { ...s.inventory, pegs: [...s.inventory.pegs, item as SpecialKind] } });
+          const counted = (patch: Partial<Data>) =>
+            set({
+              ...patch,
+              chips: s.chips - price,
+              shop: {
+                ...s.shop,
+                boughtThisRun: { ...s.shop.boughtThisRun, [item]: (s.shop.boughtThisRun[item] ?? 0) + 1 },
+                usesThisShift: isStudy(item) ? { ...s.shop.usesThisShift, [item]: (s.shop.usesThisShift[item] ?? 0) + 1 } : s.shop.usesThisShift,
+              },
+            });
+          if (item === "secondChance") counted({ inventory: { ...s.inventory, secondChance: s.inventory.secondChance + 1 } });
+          if ((SHIFT_MODS as ShopItem[]).includes(item) && !s.inventory[item as ShiftMod]) counted({ inventory: { ...s.inventory, [item]: true } });
+          if (isPeg(item) && ctx.copies[item]! < MAX_COPIES) counted({ inventory: { ...s.inventory, pegs: [...s.inventory.pegs, { kind: item, tier: ctx.tier }] } });
           if (item === "defuser" && conceptId && s.conceptState[conceptId]?.bombActive && !inProgress(s.session)) {
-            set({ chips: s.chips - price, session: newSession("defuse", 1), reveal: null });
+            counted({ session: newSession("defuse", 1), reveal: null });
             get().choose(conceptId);
           }
+        },
+
+        reroll() {
+          const s = get();
+          const cost = rerollCost(s.shop.rerolls);
+          if (s.chips < cost) return;
+          set({ chips: s.chips - cost, shop: { ...s.shop, rerolls: s.shop.rerolls + 1 } });
         },
 
         flag(questionId) {
@@ -385,16 +417,32 @@ export const useGame = create<Data & Actions>()(
     },
     {
       name: "sure-thing-v1",
-      // older saves predate the crazy shop and the game-show reskin
-      merge: (saved, current) => {
-        const s = saved as Partial<Data>;
-        const inventory = { ...initial.inventory, ...s.inventory };
-        inventory.pegs = inventory.pegs.map((k) => RENAMED[k as string] ?? k);
-        return { ...current, ...s, inventory, settings: { ...initial.settings, ...s.settings } };
-      },
+      merge: (saved, current) => mergeSave(saved, current),
     }
   )
 );
+
+
+/** Loads older sure-thing-v1 saves with sensible defaults. They predate the crazy shop, the game-show reskin, copies and tiers. */
+export function mergeSave<T extends Data>(saved: unknown, current: T): T {
+  const s = (saved ?? {}) as Partial<Data>;
+  const inventory = { ...initial.inventory, ...s.inventory };
+  // pegs were plain names before copies and tiers
+  inventory.pegs = (inventory.pegs as (OwnedPeg | string)[]).map((k) => (typeof k === "string" ? { kind: RENAMED[k] ?? (k as SpecialKind), tier: 1 } : k));
+  const shop = { ...initial.shop, ...s.shop };
+  return { ...current, ...s, inventory, shop, settings: { ...initial.settings, ...s.settings } };
+}
+
+/** Share of concepts that are Solid (box 4 or 5, no bomb). Unlocks stronger peg tiers. */
+export function masteredShare(s: Pick<Data, "concepts" | "conceptState">) {
+  if (s.concepts.length === 0) return 0;
+  return s.concepts.filter((c) => pegState(s.conceptState[c.id]) === "solid").length / s.concepts.length;
+}
+
+export function priceCtx(s: Pick<Data, "concepts" | "conceptState" | "inventory" | "shop">): PriceCtx {
+  const copies: Partial<Record<SpecialKind, number>> = Object.fromEntries(SPECIALS.map((k) => [k, s.inventory.pegs.filter((p) => p.kind === k).length]));
+  return { boughtThisRun: s.shop.boughtThisRun, usesThisShift: s.shop.usesThisShift, copies, tier: tierUnlocked(masteredShare(s)), index: incomeIndex(s.shop.shiftIncome) };
+}
 
 /** Shared derived values for the UI. */
 export function useDerived() {

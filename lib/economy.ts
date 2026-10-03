@@ -75,3 +75,79 @@ export function brier(attempts: Attempt[]): number | null {
 /** Share of a Shift's chip income that came from knowing things rather than chance. Target: 80% or more. */
 export const SKILL_TARGET = 0.8;
 export const skillShare = (skill: number, chance: number) => (skill + chance > 0 ? skill / (skill + chance) : 1);
+
+/* ---------- Shop pricing (replaces the old lifetime-chips tier, doc 10 section 1.2) ---------- */
+
+export type StudyTool = "secondChance" | "defuser";
+export type Boost = "magnet" | "mega" | "quake";
+export type PegKind = "wheel" | "quiz21" | "quiz" | "splitter" | "blackhole" | "bumper";
+export type Item = StudyTool | Boost | PegKind;
+
+/** Base prices, tuned with the multi-Shift sim in tests/tuning.test.ts against the income a Shift now pays. */
+export const STUDY_BASE: Record<StudyTool, number> = { secondChance: 12, defuser: 15 };
+export const BOOST_BASE: Record<Boost, number> = { magnet: 55, mega: 75, quake: 45 };
+export const PEG_BASE: Record<PegKind, number> = { wheel: 90, quiz21: 95, quiz: 70, splitter: 75, blackhole: 80, bumper: 55 };
+/** Tier t's base price is the tier 1 base times this. Each tier is a stronger peg. */
+export const TIER_MULT = [1, 1.6, 2.4, 3.5];
+export const MAX_COPIES = 3;
+export const STUDY_CAP = 3; // study tools never cost more than 3x base
+export const isStudy = (i: Item): i is StudyTool => i in STUDY_BASE;
+export const isBoost = (i: Item): i is Boost => i in BOOST_BASE;
+export const isPeg = (i: Item): i is PegKind => i in PEG_BASE;
+
+/** Study tools: base * (1 + 0.1 * usesThisShift), resets every Shift, never above 3x base. */
+export const studyPrice = (base: number, usesThisShift: number) => Math.min(STUDY_CAP * base, Math.ceil((base * (10 + usesThisShift)) / 10));
+/** Consumable boosts: ceil(base * 1.12 ^ boughtThisRun). */
+export const boostPrice = (base: number, boughtThisRun: number, index = 1) => Math.ceil(base * 1.12 ** boughtThisRun * index);
+/** Permanent pegs: ceil(baseTier * 1.15 ^ copies). */
+export const pegBase = (kind: PegKind, tier: number) => Math.round(PEG_BASE[kind] * TIER_MULT[Math.max(1, Math.min(4, tier)) - 1]);
+export const pegPrice = (kind: PegKind, tier: number, copies: number, index = 1) => Math.ceil(pegBase(kind, tier) * 1.15 ** copies * index);
+
+/** Tiers 2, 3 and 4 unlock at 25%, 50% and 75% of concepts mastered. */
+export const tierUnlocked = (masteredShare: number) => 1 + [0.25, 0.5, 0.75].filter((t) => masteredShare >= t).length;
+
+/**
+ * Optional income index: min(2, sqrt(avg income of the last 3 Shifts / first Shift income)).
+ * Computed from income, never lifetime totals, and it can fall. Applies to boosts and pegs, never study tools.
+ */
+export function incomeIndex(shiftIncome: number[]) {
+  if (shiftIncome.length < 2 || shiftIncome[0] <= 0) return 1;
+  const last = shiftIncome.slice(-3);
+  return Math.min(2, Math.sqrt(last.reduce((a, b) => a + b, 0) / last.length / shiftIncome[0]));
+}
+
+/** End of a Shift: +1 chip per 10 held, capped at +3. */
+export const interest = (chips: number) => Math.min(3, Math.floor(Math.max(0, chips) / 10));
+/** Rerolling the 3 crazy offers: 2 chips, +1 per reroll, resets each Shift. */
+export const rerollCost = (rerollsThisShift: number) => 2 + rerollsThisShift;
+
+export interface PriceCtx {
+  boughtThisRun: Partial<Record<Item, number>>;
+  usesThisShift: Partial<Record<Item, number>>;
+  copies: Partial<Record<PegKind, number>>;
+  tier: number; // highest peg tier unlocked
+  index: number; // income index
+}
+
+/** Current price, the price after one more purchase, and why, in plain words. */
+export function priceOf(item: Item, c: PriceCtx): { price: number; next: number; reason: string } {
+  if (isStudy(item)) {
+    const u = c.usesThisShift[item] ?? 0;
+    return {
+      price: studyPrice(STUDY_BASE[item], u),
+      next: studyPrice(STUDY_BASE[item], u + 1),
+      reason: `Study tool: +10% for each one bought this Shift (${u} so far), back to ${STUDY_BASE[item]} next Shift, never above ${STUDY_CAP * STUDY_BASE[item]}.`,
+    };
+  }
+  const idx = c.index !== 1 ? ` Income index x${c.index.toFixed(2)} (your recent Shifts against your first; it falls if they do).` : "";
+  if (isBoost(item)) {
+    const n = c.boughtThisRun[item] ?? 0;
+    return { price: boostPrice(BOOST_BASE[item], n, c.index), next: boostPrice(BOOST_BASE[item], n + 1, c.index), reason: `+12% each time you buy it this unit (${n} so far).${idx}` };
+  }
+  const n = c.copies[item] ?? 0;
+  return {
+    price: pegPrice(item, c.tier, n, c.index),
+    next: pegPrice(item, c.tier, n + 1, c.index),
+    reason: `Tier ${c.tier} peg. +15% for each copy you own (${n} of ${MAX_COPIES}).${c.tier < 4 ? " Master more concepts to unlock a stronger tier." : ""}${idx}`,
+  };
+}

@@ -6,7 +6,7 @@ import {
 import bank from "@/data/databases-101.json";
 import { SEEDED, loadUnit } from "@/lib/loadUnit";
 import type { Question } from "@/lib/engine";
-import { bestBet, betOutcome, breakEven, calibrationGap, calibrationGrade, evNet } from "@/lib/economy";
+import { bestBet, betOutcome, boostPrice, breakEven, calibrationGap, calibrationGrade, evNet, incomeIndex, interest, pegPrice, rerollCost, studyPrice, tierUnlocked } from "@/lib/economy";
 
 const now = new Date("2026-10-02T10:00:00");
 const fresh = (id = "c") => newConceptState(id, now);
@@ -180,5 +180,27 @@ describe("unit picking", () => {
     expect((await loadUnit("Databases 101", "2026-10-11", () => {})).unit.id).toBe("databases-101");
     expect((await loadUnit("soil properties (chemistry)", "2026-10-11", () => {})).unit.id).toBe("soil-chemistry");
     expect((await loadUnit("Soil Chem", "2026-10-11", () => {})).unit.id).toBe("soil-chemistry");
+  });
+});
+
+describe("shop price formulas", () => {
+  it("study tools: base * (1 + 0.1 * usesThisShift), never above 3x base", () => {
+    expect([0, 1, 5, 19, 20, 50].map((u) => studyPrice(10, u))).toEqual([10, 11, 15, 29, 30, 30]);
+  });
+  it("boosts: ceil(base * 1.12 ^ boughtThisRun)", () => expect([0, 1, 2].map((n) => boostPrice(45, n))).toEqual([45, 51, 57]));
+  it("pegs: ceil(baseTier * 1.15 ^ copies), stronger tiers cost more", () => {
+    expect([0, 1, 2].map((n) => pegPrice("bumper", 1, n))).toEqual([55, 64, 73]);
+    expect(pegPrice("bumper", 2, 0)).toBeGreaterThan(pegPrice("bumper", 1, 0));
+  });
+  it("tiers unlock at 25, 50 and 75% mastered", () => expect([0, 0.25, 0.5, 0.74, 0.75, 1].map(tierUnlocked)).toEqual([1, 2, 3, 3, 4, 4]));
+  it("income index uses recent income against the first Shift, caps at 2 and can fall", () => {
+    expect(incomeIndex([40])).toBe(1);
+    expect(incomeIndex([40, 160, 160, 160])).toBe(2);
+    expect(incomeIndex([40, 90, 90, 90])).toBeCloseTo(1.5);
+    expect(incomeIndex([40, 90, 90, 90, 10, 10, 10])).toBeLessThan(1);
+  });
+  it("interest is +1 per 10 held, capped at +3; rerolls cost 2 rising by 1", () => {
+    expect([0, 9, 10, 29, 300].map(interest)).toEqual([0, 0, 1, 2, 3]);
+    expect([0, 1, 2].map(rerollCost)).toEqual([2, 3, 4]);
   });
 });

@@ -173,7 +173,7 @@ function Legend() {
           </li>
         ))}
       </ul>
-      {owned.length > 0 && <p className="small">Installed: {owned.map((k) => ITEM_INFO[k].name).join(", ")}. Tap one to see what it does.</p>}
+      {owned.length > 0 && <p className="small">Installed: {owned.map((k) => `${ITEM_INFO[k.kind].name} T${k.tier}`).join(", ")}. Tap one to see what it does.</p>}
     </>
   );
 }
@@ -783,6 +783,7 @@ function Summary() {
           <tbody>
             <tr><td>Right</td><td className="mono">{s.correct} of {s.answered}</td></tr>
             <tr><td>Earned</td><td className="mono">+{s.chipsEarned} {t.chips}</td></tr>
+            {(s.interest ?? 0) > 0 && <tr><td>Interest</td><td className="mono">+{s.interest} (1 per 10 held, up to 3)</td></tr>}
             {(s.calBonus ?? 0) > 0 && <tr><td>Calibration bonus</td><td className="mono">+{s.calBonus} (3 per grade point)</td></tr>}
             {(s.debtAdded ?? 0) > 0 && <tr><td>Ledger debt added</td><td className="mono">+{s.debtAdded} (total {g.debt})</td></tr>}
             <tr><td>Readiness (estimate)</td><td className="mono">{s.readinessBefore}% → {ready}%</td></tr>

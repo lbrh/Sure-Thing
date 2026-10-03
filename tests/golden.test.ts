@@ -5,7 +5,7 @@ vi.hoisted(() => {
   const m = new Map<string, string>();
   globalThis.localStorage = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) } as Storage;
 });
-import { useGame, SHIFT_LENGTH } from "@/lib/store";
+import { mergeSave, useGame, SHIFT_LENGTH } from "@/lib/store";
 import { createDrop, layoutPegs } from "@/lib/board";
 import { hashString, pegState, readiness, type OptionId } from "@/lib/engine";
 import { loadUnit } from "@/lib/loadUnit";
@@ -78,15 +78,22 @@ describe("golden path", () => {
     expect(g().session!.bombsDefused).toContain("nulls");
     expect(g().screen).toBe("summary");
     expect(g().shiftsDone).toBe(1);
-    expect(g().chips).toBeGreaterThanOrEqual(10); // enough for a Defuser, as in the demo script
+    expect(g().chips).toBeGreaterThanOrEqual(15); // enough for a Defuser, as in the demo script
     expect(g().debt).toBe(12); // defusing never refunds the debt
     expect(g().session!.skillChips / (g().session!.skillChips + g().session!.chanceChips)).toBeGreaterThanOrEqual(0.8);
 
     // Shop: earn enough, then buy a Second Chance; chips never go negative
-    useGame.setState({ chips: 20 });
+    useGame.setState({ chips: 30 });
     g().buy("secondChance");
     expect(g().inventory.secondChance).toBe(1);
-    expect(g().chips).toBe(12);
+    expect(g().chips).toBe(18);
+    expect(g().shop.usesThisShift.secondChance).toBe(1);
+    g().buy("secondChance"); // study tools: +10% per use this Shift
+    expect(g().chips).toBe(18 - 14);
+    useGame.setState({ inventory: { ...g().inventory, secondChance: 1 } });
+    g().reroll();
+    expect(g().chips).toBe(2);
+    expect(g().shop.rerolls).toBe(1);
 
     // Shift 2: Second Chance absorbs the first miss (no penalty, no bomb, retry)
     g().startShift();
@@ -109,11 +116,14 @@ describe("golden path", () => {
       drop();
     }
     expect(g().shiftsDone).toBe(2);
+    expect(g().shop.usesThisShift).toEqual({}); // study tool prices reset each Shift
+    expect(g().shop.rerolls).toBe(0);
+    expect(g().shop.shiftIncome).toHaveLength(2);
 
     // Defuser: plant a bomb in Shift 3, then buy a retest from the shop
     playShift(true);
     const bomb = g().concepts.find((c) => g().conceptState[c.id].bombActive)!;
-    useGame.setState({ chips: 10 });
+    useGame.setState({ chips: 15 });
     g().buy("defuser", bomb.id);
     expect(g().session!.kind).toBe("defuse");
     expect(g().chips).toBe(0);
@@ -224,5 +234,30 @@ describe("streaks and resuming", () => {
     g().resume();
     expect(g().screen).toBe("question");
     expect(g().session!.questionId).toBe(qid);
+  });
+});
+
+describe("shop pegs and old saves", () => {
+  it("buys up to 3 copies of a peg at the unlocked tier, each dearer than the last", async () => {
+    const l = await loadUnit("Databases 101", "2026-10-11", () => {});
+    g().setup(l.unit, l.concepts, l.questions);
+    useGame.setState({ chips: 1000 });
+    const prices: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const before = g().chips;
+      g().buy("bumper");
+      prices.push(before - g().chips);
+    }
+    expect(prices.slice(0, 3)).toEqual([55, 64, 73]); // ceil(55 * 1.15 ^ copies)
+    expect(prices[3]).toBe(0); // a 4th copy isn't for sale
+    expect(g().inventory.pegs).toEqual([1, 1, 1].map((tier) => ({ kind: "bumper", tier })));
+  });
+  it("loads an old sure-thing-v1 save with renamed plain pegs and no shop state", async () => {
+    const old = { chips: 7, inventory: { secondChance: 1, pegs: ["roulette", "blackjack", "bumper"] }, screen: "hub" };
+    const m = mergeSave(old, { ...g(), debt: 0 });
+    expect(m.chips).toBe(7);
+    expect(m.debt).toBe(0);
+    expect(m.inventory.pegs).toEqual([{ kind: "wheel", tier: 1 }, { kind: "quiz21", tier: 1 }, { kind: "bumper", tier: 1 }]);
+    expect(m.shop).toEqual({ boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] });
   });
 });

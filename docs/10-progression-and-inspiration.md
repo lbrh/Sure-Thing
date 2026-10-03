@@ -15,21 +15,19 @@ Goals:
 3. Income grows with real learning (more Solid pegs, longer streaks, fewer bombs), so the fastest way up the curve is to know more and bet honestly.
 4. The price curve never gates learning. Every retest stays free through the Draw.
 
-### 1.2 Proposed rules (starting values, tune in playtest)
+### 1.2 Rules as built (October 2026, replaces the first proposal)
 
-Track lifetime chips earned from the board (`chipsEarnedTotal`, never reduced by spending or penalties).
+The first proposal multiplied every price by `tier(lifetime chips earned)`. That makes prices rise faster than income, so faster learners pay more. It was dropped. Prices now come from what you bought, not how much you earned (doc 11 has the reasoning):
 
-```
-price(item) = ceil( base(item) * 1.15 ^ bought(item) * tier(chipsEarnedTotal) )
+- **Study tools** (Second Chance, Defuser): `base * (1 + 0.1 * usesThisShift)`, back to base every Shift, never above 3x base. Retests stay free through the Draw.
+- **Consumable boosts** (Magnet, MEGA BUCKET, Earthquake): `ceil(base * 1.12 ^ boughtThisRun)`.
+- **Permanent pegs**: `ceil(baseTier * 1.15 ^ copies)`, up to 3 copies of each. Tiers 2, 3 and 4 unlock at 25%, 50% and 75% of concepts Solid. Tier t costs the tier 1 base times 1, 1.6, 2.4 or 3.5, and pays +(t - 1) chips every time it fires (+(t - 1) on every Prize Wheel segment).
+- **Income index** (applied to boosts and pegs only): `min(2, sqrt(avgIncomeLast3Shifts / firstShiftIncome))`. It uses income, never lifetime totals, and it falls when income falls.
+- **Interest**: at the end of a Shift, +1 chip per 10 held, capped at +3.
+- **Reroll** the 3 crazy offers for 2 chips, +1 per reroll, reset each Shift.
+- Shop cards show the current price, the next price and the reason in plain words.
 
-tier(e) = 1 + 0.25 * floor(e / 50)     // +25% on every price for each 50 chips earned, all time
-```
-
-- `base(item)` is today's flat price (doc 09, section 4).
-- `bought(item)` counts purchases of that item, the Cookie Clicker part (each building costs 15% more than the last).
-- `tier()` is the "as you earn more, things cost more" part. It rises in visible steps so the player can see it coming.
-- **Study tools are capped.** Second Chance and Defuser use the same formula but never go above 3x their base price, because they are learning tools. Every other item has no cap.
-- Permanent pegs can only be bought once each today. To give the curve somewhere to go, allow a second and third copy of each peg (each placed on the next free neutral peg) and add peg upgrade levels (a Roulette Peg level 2 with a better wheel, for example).
+Base prices were raised to match the new bet payouts (a Shift now pays about 50 chips): Second Chance 12, Defuser 15, Magnet 55, MEGA BUCKET 75, Earthquake 45, Prize Wheel 90, 21 Quiz 95, Pop Quiz 70, Splitter 75, Black Hole 80, Bumper 55. All in `lib/economy.ts`.
 
 ### 1.3 Income has to keep up
 
@@ -42,12 +40,12 @@ If prices grow and income does not, the shop turns into a wall. Income should ri
 
 ### 1.4 Acceptance criteria
 
-- [ ] Shop cards show the current price, the next price and the reason it rose ("Price rises 15% each time you buy it, and 25% for every 50 chips you have earned").
-- [ ] `chipsEarnedTotal` and per-item purchase counts persist, with a save migration (default to 0 for older saves).
-- [ ] Extend `tests/tuning.test.ts` with a multi-Shift player sim (honest bettor at 70% accuracy) that checks the gap between purchases stays between about 1 and 3 Shifts for the first 10 Shifts.
-- [ ] A player who bets honestly reaches the next purchase faster than one who always bets Certain at the same accuracy.
-- [ ] Defuser and Second Chance never cost more than 3x base.
-- [ ] Odds and prices stay visible before purchase. Nothing is bought with money (guardrails 1 and 2 still hold).
+- [x] Shop cards show the current price, the next price and the reason in plain words.
+- [x] `boughtThisRun`, copies owned, `usesThisShift`, rerolls and recent Shift income persist, with a save migration.
+- [x] `tests/tuning.test.ts` simulates 1,000 honest students at 70% accuracy over 14 days at 1 to 2 Shifts a day. At least 95% of the gaps between their first 10 purchases fall between 0.4 and 3 Shifts (the mean gap is about 1 Shift).
+- [x] An overconfident policy never out-earns the honest one: lower expected Ledger net for every simulated student, and lower on average on the actual rolls. Measured in Ledger net, because debt never touches chips (see doc 11).
+- [x] Defuser and Second Chance never cost more than 3x base.
+- [x] Odds and prices stay visible before purchase. Nothing is bought with money.
 
 ### 1.5 Further ideas from idle games (optional)
 

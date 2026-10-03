@@ -2,8 +2,11 @@
 import { describe, expect, it } from "vitest";
 import Matter from "matter-js";
 import { CHUTES, MIN_IMPACT, createDrop, layoutPegs, placeSpecials } from "@/lib/board";
-import { rng, streakMultiplier, type Attempt, type PegState } from "@/lib/engine";
-import { bestBet, betOutcome, calibrationBonus, calibrationGap, calibrationGrade, skillShare, SKILL_TARGET } from "@/lib/economy";
+import { rng, streakMultiplier, type Attempt, type Confidence, type PegState } from "@/lib/engine";
+import {
+  bestBet, betOutcome, evNet, calibrationBonus, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, MAX_COPIES, priceOf, skillShare, SKILL_TARGET, STUDY_BASE,
+  type Item, type PriceCtx,
+} from "@/lib/economy";
 
 const ids = Array.from({ length: 12 }, (_, i) => `c${i}`);
 const pegs = layoutPegs(ids, 42);
@@ -195,5 +198,79 @@ describe("skill share", () => {
     expect(shareOf(mixed)).toBeGreaterThanOrEqual(SKILL_TARGET);
     expect(shareOf(solidHeavy)).toBeGreaterThanOrEqual(SKILL_TARGET);
     expect(shareOf(mixed, placeSpecials(pegs, ["wheel", "quiz21", "quiz", "splitter", "blackhole", "bumper"]))).toBeGreaterThanOrEqual(SKILL_TARGET);
+  });
+});
+
+describe("multi-Shift shop pacing", () => {
+  // 1,000 simulated students over 14 days at 1 to 2 Shifts a day. The board pays its measured mean per bonus ball.
+  const BALL = 1.13;
+  const items: Item[] = ["magnet", "mega", "quake", "wheel", "quiz21", "quiz", "splitter", "blackhole", "bumper"];
+  function student(seed: number, policy: (p: number) => Confidence) {
+    const rand = rng(seed);
+    const ctx: PriceCtx = { boughtThisRun: {}, usesThisShift: {}, copies: {}, tier: 1, index: 1 };
+    const attempts: Attempt[] = [];
+    const income: number[] = [];
+    let chips = 5, earned = 0, debt = 0, t = 0, last = 0, expected = 0;
+    const gaps: number[] = [];
+    const cheapest = () => items.filter((i) => !isPeg(i) || (ctx.copies[i] ?? 0) < MAX_COPIES).map((i) => ({ i, ...priceOf(i, ctx) })).sort((a, b) => a.price - b.price)[0];
+    const shop = () => {
+      for (let target = cheapest(); target && chips >= target.price && gaps.length < 10; target = cheapest()) {
+        chips -= target.price;
+        gaps.push(t - last);
+        last = t;
+        if (isPeg(target.i)) ctx.copies[target.i] = (ctx.copies[target.i] ?? 0) + 1;
+        else ctx.boughtThisRun[target.i] = (ctx.boughtThisRun[target.i] ?? 0) + 1;
+      }
+    };
+    for (let day = 0; day < 14; day++) {
+      const shifts = rand() < 0.5 ? 1 : 2;
+      for (let s = 0; s < shifts; s++) {
+        let streak = 0, shiftIncome = 0;
+        for (let q = 0; q < 8; q++) {
+          const p = 0.4 + rand() * 0.6;
+          const right = rand() < p;
+          const c = policy(p);
+          attempts.push({ id: "", questionId: "", conceptId: "", chosen: "A", confidence: c, correct: right, ms: 0, at: "" });
+          const m = streakMultiplier(streak + 1);
+          const o = betOutcome(c, right, m);
+          expected += m * evNet(c, p);
+          streak = right ? streak + 1 : 0;
+          const gain = o.chips + o.balls * BALL;
+          chips += gain;
+          shiftIncome += gain;
+          debt += o.debt;
+          t += 1 / 8;
+          shop();
+        }
+        const bonus = calibrationBonus(calibrationGrade(calibrationGap(attempts)));
+        chips += bonus + interest(chips + bonus);
+        shiftIncome += bonus;
+        earned += shiftIncome;
+        income.push(shiftIncome);
+        ctx.index = incomeIndex(income);
+        shop();
+      }
+    }
+    return { gaps, net: earned - debt, expected };
+  }
+  const up = (c: Confidence): Confidence => (c === "guess" ? "pretty" : "certain");
+  const runs = Array.from({ length: 1000 }, (_, i) => ({ honest: student(i + 1, (p) => bestBet(p)), over: student(i + 1, (p) => up(bestBet(p))) }));
+
+  it("time to the next purchase stays between 0.4 and 3 Shifts for at least 95% of the first 10 purchases", () => {
+    const gaps = runs.flatMap((r) => r.honest.gaps.slice(1)); // the first purchase is timed from a standing start
+    const inBand = gaps.filter((g) => g >= 0.4 && g <= 3).length / gaps.length;
+    expect(runs.filter((r) => r.honest.gaps.length === 10).length).toBeGreaterThanOrEqual(990);
+    expect(inBand).toBeGreaterThanOrEqual(0.95);
+  });
+  it("an overconfident policy never out-earns the honest one", () => {
+    // in expectation, for every single student; and on the actual dice rolls, on average and for all but a sliver of students
+    expect(runs.every((r) => r.over.expected < r.honest.expected)).toBe(true);
+    const mean = (k: "honest" | "over") => runs.reduce((a, r) => a + r[k].net, 0) / runs.length;
+    expect(mean("over")).toBeLessThan(mean("honest"));
+    expect(runs.filter((r) => r.over.net >= r.honest.net).length).toBeLessThanOrEqual(5);
+  });
+  it("study tools never exceed 3x base", () => {
+    for (const tool of ["secondChance", "defuser"] as const)
+      for (let u = 0; u < 100; u++) expect(priceOf(tool, { boughtThisRun: {}, usesThisShift: { [tool]: u }, copies: {}, tier: 4, index: 2 }).price).toBeLessThanOrEqual(3 * STUDY_BASE[tool]);
   });
 });

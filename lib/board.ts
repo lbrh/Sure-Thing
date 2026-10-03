@@ -46,7 +46,17 @@ export interface PegSpec {
   y: number;
   conceptId?: string;
   special?: SpecialKind;
+  tier?: number; // 1 to 4: each tier adds +1 chip every time the peg fires, and +1 to every wheel segment
 }
+
+/** A shop peg you own. Up to 3 copies of each kind, each bought at the highest tier unlocked at the time. */
+export interface OwnedPeg {
+  kind: SpecialKind;
+  tier: number;
+}
+
+/** Prize Wheel segments for a tier. Phase 5 adds the streak synergy on top. */
+export const tierSegments = (tier = 1, extra = 0) => PRIZE_WHEEL.map((v) => v + tier - 1 + extra);
 
 /** Fixed peg grid; each concept gets 2 scoring pegs, placed by a seeded shuffle. */
 export function layoutPegs(conceptIds: string[], seed: number): PegSpec[] {
@@ -66,7 +76,8 @@ export function layoutPegs(conceptIds: string[], seed: number): PegSpec[] {
 }
 
 /** Owned specials take over neutral pegs, most central first, in purchase order. */
-export function placeSpecials(pegs: PegSpec[], specials: SpecialKind[]): PegSpec[] {
+export function placeSpecials(pegs: PegSpec[], owned: (OwnedPeg | SpecialKind)[]): PegSpec[] {
+  const specials = owned.map((o) => (typeof o === "string" ? { kind: o, tier: 1 } : o));
   const midY = TOP + ((ROWS - 1) * ROW_GAP) / 2;
   const free = pegs
     .map((p, i) => ({ p, i }))
@@ -74,7 +85,7 @@ export function placeSpecials(pegs: PegSpec[], specials: SpecialKind[]): PegSpec
     .sort((a, b) => Math.abs(a.p.y - midY) + Math.abs(a.p.x - W / 2) * 0.6 - (Math.abs(b.p.y - midY) + Math.abs(b.p.x - W / 2) * 0.6))
     .map(({ i }) => i);
   const out = pegs.map((p) => ({ ...p }));
-  specials.slice(0, free.length).forEach((k, n) => (out[free[n]].special = k));
+  specials.slice(0, free.length).forEach((k, n) => Object.assign(out[free[n]], { special: k.kind, tier: k.tier }));
   return out;
 }
 
@@ -224,11 +235,13 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
 
   const special = (b: Ball, i: number) => {
     const k = pegs[i].special!;
+    const tier = pegs[i].tier ?? 1;
     events.push({ type: "peg", state: k });
+    if (tier > 1 && k !== "wheel") pay(tier - 1, pegs[i].x, pegs[i].y - 24, 0, 0); // stronger tiers pay a little every time they fire
     if (isHold(k)) {
       b.held = true;
       Matter.Composite.remove(world, b.body);
-      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total), segments: PRIZE_WHEEL });
+      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total), segments: tierSegments(tier) });
       say(i, k === "quiz" ? "POP QUIZ!" : k === "wheel" ? "PRIZE WHEEL!" : "21 QUIZ!");
     } else if (k === "splitter" && !b.child && balls.length < MAX_BALLS) {
       for (const dx of [-1, 1]) Matter.Body.setVelocity(addBall(pegs[i].x + dx * 12, pegs[i].y - 4, true, b.total).body, { x: dx * 2.5, y: -1.5 });

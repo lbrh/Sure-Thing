@@ -125,15 +125,15 @@ where urgency is 1.25 when the exam is 3 days away or less. The Draw offers the 
 
 Note the Defuser: spending chips to get quizzed again on your weakest topic rewards self-testing. The same retest is also available free through the normal Draw, so chips never gate learning.
 
-As built: Hint and Wide Catcher were not made. Magnet Peg moved into a rotating set of 3 "crazy offers" per visit, alongside MEGA BUCKET, Earthquake, and six permanent board pegs (Roulette, Blackjack, Pop Quiz, Splitter, Black Hole, Bumper). Full price list in doc 09, section 4. All prices are currently flat.
+As built: Hint and Wide Catcher were not made. Magnet Peg moved into a rotating set of 3 "crazy offers" per visit, alongside MEGA BUCKET, Earthquake, and six permanent board pegs (Roulette, Blackjack, Pop Quiz, Splitter, Black Hole, Bumper). Full price list in doc 09, section 4.
 
 ### 4.8 Exam Day (final boss)
 
 10 questions sampled across all concepts, weighted to weak and bombed ones, bets on. The result feeds the readiness report. The label is "readiness estimate", never "predicted grade".
 
-### 4.9 Progression: prices rise as you earn (new requirement)
+### 4.9 Progression: prices rise as you buy (built October 2026)
 
-Like Cookie Clicker, upgrades must get more expensive as the player earns more chips, so there is always something worth saving for. Starting proposal: each purchase of an item raises its next price by 15%, and every price rises another 25% for each 50 chips earned all time. Study tools (Second Chance, Defuser) are capped at 3x base so learning is never priced out, and income has to grow with learning (more Solid pegs, streaks, owned pegs) so the curve never becomes a wall. Full rules and acceptance criteria are in `10-progression-and-inspiration.md`, section 1.
+Like Cookie Clicker, there is always something worth saving for, but prices rise with what you buy, not with what you earn, so faster learners never pay more. Study tools reset every Shift and are capped at 3x base, boosts rise 12% per purchase, pegs 15% per copy with stronger tiers unlocked by mastery. Full rules in `10-progression-and-inspiration.md`, section 1.2.
 
 ### 4.10 Inspiration for the next round
 

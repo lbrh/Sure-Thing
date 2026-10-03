@@ -2,7 +2,7 @@
 
 What the first commit (`7da60fc`, "init: initialize project with basic configuration and structure") actually ships, and where it differs from the plans in docs 01 to 08. When a plan doc and this doc disagree, this doc describes the code as it is.
 
-Status as of 2 October 2026. `npm test` passes: 4 files, 56 tests.
+Status as of 2 October 2026. `npm test` passes: 4 files, 67 tests.
 
 ## 1. Summary
 
@@ -12,7 +12,7 @@ The biggest departures from the plan:
 
 1. **The look.** The planned "study lamp meets pachinko parlour" dark theme was replaced by a Windows 95 / early-web look (see section 6).
 2. **Casino imagery, since reskinned.** The first commit had Roulette, Blackjack (playing cards) and a "MEGA HIT" strobe. They are now the Prize Wheel Peg, the 21 Quiz Peg and a proportional cheer (doc 08, rules 5 and 6).
-3. **Shop prices are flat.** Each item has one fixed price. The new requirement is that prices rise as you earn more chips (doc 10, section 1). Not built yet.
+3. **Shop prices rise as you buy.** Built in October 2026 (doc 10, section 1.2), replacing the first proposal that tied prices to lifetime chips.
 
 ## 2. Feature checklist against the MVP plan
 
@@ -74,23 +74,33 @@ The ball scale was tuned with `tests/tuning.test.ts` so a mixed board pays 1.0 t
 - **The streak multiplier no longer multiplies the board.** It scales the bet payout and the debt only, so luck on the board is never multiplied. With all six shop pegs installed the share still clears 80%.
 - **A calibration bonus (3 chips per grade point) was added** so calibration pays directly, as the skill-share rule assumes.
 
-### Shop items and prices (all flat today)
+### Shop items and prices
 
-| Item | Kind | Price | Effect |
+- **Study tools** (Second Chance, Defuser): `base * (1 + 0.1 * usesThisShift)`, back to base every Shift, never above 3x base. Retests stay free through the Draw.
+- **Consumable boosts** (Magnet, MEGA BUCKET, Earthquake): `ceil(base * 1.12 ^ boughtThisRun)`.
+- **Permanent pegs**: `ceil(baseTier * 1.15 ^ copies)`, up to 3 copies of each. Tiers 2, 3 and 4 unlock at 25%, 50% and 75% of concepts Solid. Tier t costs the tier 1 base times 1, 1.6, 2.4 or 3.5, and pays +(t - 1) chips every time it fires (+(t - 1) on every Prize Wheel segment).
+- **Income index** (applied to boosts and pegs only): `min(2, sqrt(avgIncomeLast3Shifts / firstShiftIncome))`. It uses income, never lifetime totals, and it falls when income falls.
+- **Interest**: at the end of a Shift, +1 chip per 10 held, capped at +3.
+- **Reroll** the 3 crazy offers for 2 chips, +1 per reroll, reset each Shift.
+- Shop cards show the current price, the next price and the reason in plain words.
+
+Base prices (tier 1, first copy):
+
+| Item | Kind | Base | Effect |
 |---|---|---|---|
-| Second Chance | Study tool, stackable | 8 | Next wrong answer costs nothing, removes that option, retry once |
-| Defuser | Study tool | 10 | Pick a bomb and retest it now. Only between sessions |
-| Magnet Peg | Next-Shift mod | 15 | Solid pegs pull in balls within 30 px and count the hit |
-| MEGA BUCKET | Next-Shift mod | 22 | Centre bucket x10 instead of x3 |
-| Earthquake | Next-Shift mod | 6 | Gravity sways side to side |
-| Prize Wheel Peg | Permanent peg | 18 | Captures the ball and spins a 7-segment wheel: +1, +2, +2, +3, +3, +5, +8 chips (average 24/7). No zero, no stake: the ball keeps its value and drops back in. Calm mode pays +3 instantly |
-| 21 Quiz Peg | Permanent peg | 20 | Captures the ball for questions worth 2 to 10 by difficulty (value shown first). Hit or stand after each right answer. Each right answer pays 1. Hand bonus = hand / 3 rounded, doubled at exactly 21, lost on a wrong answer or over 21. The ball drops back in |
-| Pop Quiz Peg | Permanent peg | 12 | Captures the ball and asks a question from a concept you have seen. Right within 4 s pays x10, sliding to x2 at 20 s. Wrong keeps the ball at x1. No mastery change |
-| Splitter Peg | Permanent peg | 14 | Splits a ball into three. Copies keep what the original had earned. Cap 40 balls |
-| Black Hole | Permanent peg | 16 | Pulls balls within 80 px, warps them back to the top once, +2 for the trip |
-| Bumper | Permanent peg | 8 | Bigger peg that fires the ball away at speed |
+| Second Chance | Study tool, stackable | 12 | Next wrong answer costs nothing, removes that option, retry once |
+| Defuser | Study tool | 15 | Pick a bomb and retest it now. Only between sessions |
+| Magnet Peg | Next-Shift mod | 55 | Solid pegs pull in balls within 30 px and count the hit |
+| MEGA BUCKET | Next-Shift mod | 75 | Centre bucket x10 instead of x3 |
+| Earthquake | Next-Shift mod | 45 | Gravity sways side to side |
+| Prize Wheel Peg | Permanent peg | 90 | Captures the ball and spins a 7-segment wheel: +1, +2, +2, +3, +3, +5, +8 chips (average 24/7). No zero, no stake: the ball keeps its value and drops back in. Calm mode pays +3 instantly |
+| 21 Quiz Peg | Permanent peg | 95 | Captures the ball for questions worth 2 to 10 by difficulty (value shown first). Hit or stand after each right answer. Each right answer pays 1. Hand bonus = hand / 3 rounded, doubled at exactly 21, lost on a wrong answer or over 21. The ball drops back in |
+| Pop Quiz Peg | Permanent peg | 70 | Captures the ball and asks a question from a concept you have seen. Right within 4 s pays x10, sliding to x2 at 20 s. Wrong keeps the ball at x1. No mastery change |
+| Splitter Peg | Permanent peg | 75 | Splits a ball into three. Copies keep what the original had earned. Cap 40 balls |
+| Black Hole | Permanent peg | 80 | Pulls balls within 80 px, warps them back to the top once, +1 peg value for the trip |
+| Bumper | Permanent peg | 55 | Bigger peg that fires the ball away at speed |
 
-Shop layout: Skins (free), Study tools (always), and "Today's crazy offers": 3 items drawn by seeded shuffle from the Shift mods plus any permanent pegs you do not own yet. Offers rotate as you answer more questions. Permanent pegs take over neutral pegs, most central first, in purchase order. Next-Shift mods clear at the end of a Shift.
+Shop layout: Skins (free), Study tools (always), and "Today's crazy offers": 3 items drawn by seeded shuffle from the Shift mods plus any permanent pegs you own fewer than 3 copies of. A Reroll button redraws them. Offers rotate as you answer more questions. Permanent pegs take over neutral pegs, most central first, in purchase order. Next-Shift mods clear at the end of a Shift.
 
 Pop Quiz pays the ball's full value with no 0.36 scale, minimum 1, so a big multiplier feels big. A payout that beats what the ball already had gets a cheer sized to the gain (ratio 2 or more NICE!, 4 or more SUPER DROP!, 8 or more MEGA HIT!). Only MEGA HIT! shakes the screen. Nothing strobes. Off in Calm mode.
 
@@ -149,7 +159,7 @@ Data model additions: `Attempt.exam` marks Exam Day answers. The store adds `Ses
 
 ## 9. Known gaps and follow-ups
 
-1. Shop prices do not scale. See doc 10 section 1.
+1. Shop pacing is tuned in simulation only. Playtest the price curve with real students.
 2. Casino imagery: decided, reskinned as game show props. See doc 08 section 1.
 3. Hint and Wide Catcher (doc 02 section 4.7 stretch items) were not built. Magnet moved from "always on sale" to the rotating offers.
 4. The daily cap counts Shifts started, not finished.
