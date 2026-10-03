@@ -220,6 +220,8 @@ Three offers shown per visit, drawn at random from the item list (roguelike feel
 
 **Hub additions (October 2026).** A Concept Bingo card under the board, a Calibration Keno panel (collapsed, optional) above the Shift stats, the Ledger Pot, and a Readiness Odds line labelled as an estimate with its answer count. The reveal can show a Mystery Fact and a Go Deeper button after a right answer. The Shift summary is a scratch-style Report Card, shown all at once in Calm mode.
 
+**Legacy Draft (October 2026).** After Exam Day, "Finish this unit" on the Readiness Report opens LEGACY_DRAFT.EXE: a Mastery Marks hit counter, three relic cards, a reroll button, a row of "keep one peg" buttons, the Stake picker (hidden in Calm mode) and a big "Start a new unit" button. The report adds THE_COLLECTORS_JOURNAL.TXT (story lines unlocked) and ACHIEVEMENTS.TXT. A "Collector's Audit" button appears on the hub when one is due.
+
 **Rising prices (built).** Prices must grow as the player earns more chips, Cookie Clicker style (`10-progression-and-inspiration.md`, section 1). Each card should show the current price, the next price and why it rose, so the curve is transparent like the odds.
 
 ### 5.8 Readiness Report

@@ -24,7 +24,7 @@ const BUCKET_COLOR = (m: number) => (m >= 10 ? null : m >= 3 ? "#ff0000" : m >= 
 export interface BoardProps {
   pegs: PegSpec[];
   states: Record<string, PegState>;
-  drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean; fever?: boolean; streakMult?: number } | null;
+  drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean; fever?: boolean; streakMult?: number; wheelExtra?: number[] } | null;
   showMega?: boolean; // static preview of next Shift's mega bucket
   onDone?: (chips: number, skill: number, armed: string[]) => void;
   /** Captured ball: show a popup, then call release(result). Leave unset to auto-play. Calm mode pays the wheel's expected value without asking. */
@@ -53,7 +53,7 @@ export default function Board(props: BoardProps) {
 
   const statesKey = JSON.stringify(states);
   const frozenStates = useMemo(() => states, [statesKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const dropKey = drop ? `${drop.balls}:${drop.seed}:${drop.magnet}:${drop.mega}:${drop.quake}:${drop.fever}:${drop.streakMult}` : "";
+  const dropKey = drop ? `${drop.balls}:${drop.seed}:${drop.magnet}:${drop.mega}:${drop.quake}:${drop.fever}:${drop.streakMult}:${drop.wheelExtra}` : "";
 
   useEffect(() => {
     const el = canvas.current;
@@ -390,14 +390,14 @@ function drawSpecial(c: CanvasRenderingContext2D, x: number, y: number, k: Speci
     c.fillStyle = "#000";
     c.font = `900 10px "Arial Black", sans-serif`;
     c.fillText("21?", x, y + 1);
-  } else if (k === "quiz") {
-    c.fillStyle = C.magenta;
+  } else if (k === "quiz" || k === "alumni") {
+    c.fillStyle = k === "alumni" ? C.orange : C.magenta;
     c.fillRect(x - 10, y - 10, 20, 20);
     c.strokeStyle = C.white;
     c.strokeRect(x - 10, y - 10, 20, 20);
     c.fillStyle = "#000";
     c.font = `900 14px "Arial Black", sans-serif`;
-    c.fillText("?", x, y + 1);
+    c.fillText(k === "alumni" ? "A" : "?", x, y + 1);
   } else if (k === "splitter") {
     c.beginPath();
     c.moveTo(x - 11, y - 9);

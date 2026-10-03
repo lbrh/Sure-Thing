@@ -137,6 +137,10 @@ As built: Hint and Wide Catcher were not made. Magnet Peg moved into a rotating 
 
 Like Cookie Clicker, there is always something worth saving for, but prices rise with what you buy, not with what you earn, so faster learners never pay more. Study tools reset every Shift and are capped at 3x base, boosts rise 12% per purchase, pegs 15% per copy with stronger tiers unlocked by mastery. Full rules in `10-progression-and-inspiration.md`, section 1.2.
 
+### 4.9a Runs and meta-progression (built October 2026)
+
+A unit is a run that ends at Exam Day and the Readiness Report. Learning (never chips) earns Mastery Marks for a Legacy Draft of relics, one peg can be carried forward, opt-in Stakes unlock with good calibration, weak concepts return as Alumni pegs, and a Collector's Audit boss round comes every 3 to 4 days. Details in doc 09, section 4a.
+
 ### 4.10 Inspiration for the next round
 
 Mechanics from Peggle (target pegs to clear, a moving free-ball bucket, power pegs, style-shot bonuses) and from casino and gambling games (Keno-style calibration bets, bingo cards of concepts, double or nothing on a knowledge question) are collected in `10-progression-and-inspiration.md`, sections 2 and 3, each checked against the guardrails.

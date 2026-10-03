@@ -6,6 +6,7 @@ import { calibration, calibrationByLevel, mastery, pegState, tonightsPlan, type 
 import { CONF_LABEL, LINES } from "@/lib/copy";
 import { brier, calibrationGap, calibrationGrade, CAL_WINDOW } from "@/lib/economy";
 import { Counter, Window } from "./ui";
+import { Achievements, Journal } from "./Meta";
 
 const FLAG: Record<PegState, string> = { solid: "Solid", shaky: "Shaky", cold: "Not tried", bomb: "BOMB" };
 
@@ -104,7 +105,11 @@ export default function Report() {
               ))}
             </ol>
             <div className="row">
-              <button className="btn success" onClick={g.startShift}>Start tonight&apos;s Shift</button>
+              {g.exam ? (
+                <button className="btn success" onClick={g.finishRun}>Finish this unit: Legacy Draft</button>
+              ) : (
+                <button className="btn success" onClick={g.startShift}>Start tonight&apos;s Shift</button>
+              )}
               <button className="btn" onClick={share}>{copied ? "Copied" : "Share"}</button>
               <button className="btn" onClick={() => g.go("hub")}>Hub</button>
             </div>
@@ -120,6 +125,8 @@ export default function Report() {
               </ul>
             </Window>
           )}
+          <Journal />
+          <Achievements />
           <Window title="CALIBRATION.GIF">
             <details>
               <summary>Calibration chart</summary>

@@ -9,7 +9,7 @@ import { PRIZE_WHEEL, q21Bonus, Q21_TARGET, q21Worth, quizMultiplier, QUIZ_FAST_
 import { sfx } from "@/lib/sound";
 
 /** Every shop item: copy, the popup's window name, and the odds shown before you buy. */
-export const ITEM_INFO: Record<ShopItem, { name: string; effect: string; joke: string; odds?: string; kind: "tool" | "shift" | "peg" }> = {
+export const ITEM_INFO: Record<ShopItem | "alumni", { name: string; effect: string; joke: string; odds?: string; kind: "tool" | "shift" | "peg" }> = {
   secondChance: { kind: "tool", name: "Second Chance", effect: "Your next wrong answer costs nothing and you get one retry.", joke: "Everyone deserves one. Just the one." },
   defuser: { kind: "tool", name: "Defuser", effect: "Pick a bomb and retest it now. Right with Pretty sure or Certain defuses it.", joke: "Snip the red wire. It's always the red wire." },
   magnet: { kind: "shift", name: "Magnet Peg", effect: "Next Shift: solid pegs pull in balls that pass close by.", joke: "Knowledge is attractive. Literally, this once." },
@@ -20,22 +20,24 @@ export const ITEM_INFO: Record<ShopItem, { name: string; effect: string; joke: s
   quiz: { kind: "peg", name: "Pop Quiz Peg", effect: "Catches the ball and fires a question from your unit. The faster you get it right, the bigger the multiplier.", joke: "Even the chaos makes you revise. Quickly.", odds: `Right within ${QUIZ_FAST_MS / 1000}s x10, sliding to x2 by ${QUIZ_SLOW_MS / 1000}s · Wrong keeps the ball at x1. No mastery change.` },
   splitter: { kind: "peg", name: "Splitter Peg", effect: "Splits a ball into three. The copies keep what the original had earned so far. With a Black Hole installed, the copies converge on the centre and warps land mid-board.", joke: "Mitosis, but for points." },
   blackhole: { kind: "peg", name: "Black Hole", effect: "Sucks nearby balls in and warps them back to the top for another run, +1 peg value for the trip.", joke: "Spaghettification sold separately." },
+  alumni: { kind: "peg", name: "Alumni Peg", effect: "A rare peg for a weak concept from an earlier unit. Catches the ball and asks one of its questions. Right pays the ball x3, wrong keeps it at x1. Never for sale.", joke: "Old debts, new ledger.", odds: "Right x3 · Wrong x1. No chance involved." },
   bumper: { kind: "peg", name: "Bumper", effect: "A big pinball bumper. BOING. With the Magnet on, it fires balls at the nearest bomb peg.", joke: "Some pegs just want to be loud." },
 };
 
 /* ---------- popups for captured balls ---------- */
 
-const TITLES = { wheel: "PRIZE_WHEEL.EXE", quiz21: "21_QUIZ.EXE", quiz: "POPQUIZ.EXE" } as const;
+const TITLES = { wheel: "PRIZE_WHEEL.EXE", quiz21: "21_QUIZ.EXE", quiz: "POPQUIZ.EXE", alumni: "ALUMNI.EXE" } as const;
 
 export function HoldModal({ hold, onDone, sound, reduced }: { hold: Hold; onDone: (r: HoldResult) => void; sound: boolean; reduced: boolean }) {
   const title = TITLES[hold.kind];
   return (
     <div className="modal-scrim" role="dialog" aria-modal="true" aria-label={title}>
       <Window title={title} tone={hold.kind === "wheel" ? "alert" : "ok"}>
-        <p className="counter">BALL WORTH {hold.ballValue} · {hold.kind === "quiz" ? "PAYOUT = BALL × MULTIPLIER" : "KEEPS ITS VALUE, BONUS ON TOP"}</p>
+        <p className="counter">BALL WORTH {hold.ballValue} · {hold.kind === "quiz" || hold.kind === "alumni" ? "PAYOUT = BALL × MULTIPLIER" : "KEEPS ITS VALUE, BONUS ON TOP"}</p>
         {hold.kind === "wheel" && <PrizeWheel hold={hold} onDone={onDone} sound={sound} reduced={reduced} />}
         {hold.kind === "quiz21" && <Quiz21 seed={hold.seed} onDone={onDone} sound={sound} />}
         {hold.kind === "quiz" && <Quiz seed={hold.seed} onDone={(m) => onDone({ mult: m })} worth={hold.ballValue} />}
+        {hold.kind === "alumni" && <Quiz seed={hold.seed} onDone={(m) => onDone({ mult: m })} worth={hold.ballValue} alumni />}
       </Window>
     </div>
   );
@@ -194,8 +196,15 @@ function Quiz21({ seed, onDone, sound }: { seed: number; onDone: (r: HoldResult)
 
 const pays = (worth: number, m: number) => ` = +${Math.round(worth * m)}`;
 
-function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => void; worth: number }) {
-  const pool = usePopupPool();
+function Quiz({ seed, onDone, worth, alumni }: { seed: number; onDone: (m: number) => void; worth: number; alumni?: boolean }) {
+  const seen = usePopupPool();
+  const questions = useGame((s) => s.questions);
+  const flagged = useGame((s) => s.flagged);
+  const alumniIds = useGame((s) => s.meta.alumni.map((a) => a.concept.id).join(","));
+  const pool = useMemo(
+    () => (alumni ? questions.filter((q) => !flagged.includes(q.id) && alumniIds.split(",").includes(q.conceptId)) : seen),
+    [seen, questions, flagged, alumni, alumniIds]
+  );
   const q = useMemo(() => pool[Math.floor(rng(seed)() * pool.length)], [pool, seed]);
   const [picked, setPicked] = useState<string | null>(null);
   const [took, setTook] = useState(0); // ms on the clock: live until you answer, then frozen
@@ -209,7 +218,7 @@ function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => vo
 
   if (!q) return <button className="btn big" onClick={() => onDone(1)} autoFocus>OK</button>;
   const right = picked === q.correct;
-  const bonus = quizMultiplier(took);
+  const bonus = alumni ? 3 : quizMultiplier(took); // Alumni: a flat x3, no clock
   const mult = picked ? (right ? bonus : 1) : bonus;
   const drained = Math.min(1, Math.max(0, (took - QUIZ_FAST_MS) / (QUIZ_SLOW_MS - QUIZ_FAST_MS)));
   const answer = (id: string) => {
@@ -219,14 +228,14 @@ function Quiz({ seed, onDone, worth }: { seed: number; onDone: (m: number) => vo
   };
   return (
     <>
-      <p className="odds-list">{ITEM_INFO.quiz.odds}</p>
+      <p className="odds-list">{ITEM_INFO[alumni ? "alumni" : "quiz"].odds}</p>
       <div className="row between">
         <span className={`counter big ${!picked && bonus >= 8 ? "blink" : ""}`} aria-live="off">
-          <span className="lbl">SPEED BONUS</span>x{right || !picked ? bonus : 1}
+          <span className="lbl">{alumni ? "BONUS" : "SPEED BONUS"}</span>x{right || !picked ? bonus : 1}
         </span>
         <span className="mono">{(took / 1000).toFixed(1)}s</span>
       </div>
-      <div className="progress quiz-timer" role="progressbar" aria-label="Speed bonus left" aria-valuenow={Math.round((1 - drained) * 100)} aria-valuemin={0} aria-valuemax={100}>
+      <div hidden={alumni} className="progress quiz-timer" role="progressbar" aria-label="Speed bonus left" aria-valuenow={Math.round((1 - drained) * 100)} aria-valuemin={0} aria-valuemax={100}>
         <div style={{ width: `${(1 - drained) * 100}%` }} />
       </div>
       <p className="stem">{q.stem}</p>

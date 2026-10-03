@@ -1,8 +1,8 @@
 # Sure Thing: Build Status
 
-What the first commit (`7da60fc`, "init: initialize project with basic configuration and structure") actually ships, and where it differs from the plans in docs 01 to 08. When a plan doc and this doc disagree, this doc describes the code as it is.
+What the code actually ships, and where it differs from the plans in docs 01 to 08. First written for the first commit (`7da60fc`), updated for the October 2026 progression, economy and mechanics upgrade (Phases 0 to 7, reasoning in doc 11). When a plan doc and this doc disagree, this doc describes the code as it is.
 
-Status as of 2 October 2026. `npm test` passes: 4 files, 88 tests.
+Status as of 3 October 2026. `npm test` passes: 4 files, 95 tests. `npm run build` passes.
 
 ## 1. Summary
 
@@ -13,6 +13,8 @@ The biggest departures from the plan:
 1. **The look.** The planned "study lamp meets pachinko parlour" dark theme was replaced by a Windows 95 / early-web look (see section 6).
 2. **Casino imagery, since reskinned.** The first commit had Roulette, Blackjack (playing cards) and a "MEGA HIT" strobe. They are now the Prize Wheel Peg, the 21 Quiz Peg and a proportional cheer (doc 08, rules 5 and 6).
 3. **Shop prices rise as you buy.** Built in October 2026 (doc 10, section 1.2), replacing the first proposal that tied prices to lifetime chips.
+4. **Penalties are Ledger debt, not chips.** Chips never go negative. The bet table, calibration bonus and skill-share meter are in section 4.
+5. **A unit is now a run.** Exam Day and the Readiness Report end it, followed by a Legacy Draft of Mastery Marks and relics that carry into the next unit (section 4a).
 
 ## 2. Feature checklist against the MVP plan
 
@@ -117,6 +119,22 @@ Shop layout: Skins (free), Study tools (always), and "Today's crazy offers": 3 i
 
 Pop Quiz pays the ball's full value with no 0.36 scale, minimum 1, so a big multiplier feels big. A payout that beats what the ball already had gets a cheer sized to the gain (ratio 2 or more NICE!, 4 or more SUPER DROP!, 8 or more MEGA HIT!). Only MEGA HIT! shakes the screen. Nothing strobes. Off in Calm mode.
 
+## 4a. Between runs (meta-progression)
+
+A run is one unit, from setup to Exam Day and the Readiness Report. Meta state lives in a separate `meta` slice of the save. "New unit" clears only the run.
+
+| Rule | As built |
+|---|---|
+| Mastery Marks | "Finish this unit" on the report: `M = 3 * conceptsMastered + 2 * bombsDefused + 10 * calibrationGrade + examPercent / 5`, `marks = floor(2 * sqrt(M))`. Chips never convert and time played never counts |
+| Legacy Draft | 1 of 3 relics for 3 Marks each. Rerolls cost 2 Marks, rising by 1. Carry at most 3 (taking a fourth means dropping one) |
+| Relics | Seal of Approval (the first right Certain each Shift adds a +5 segment to the Prize Wheel for that Shift), Old Ledger (start with 10 in the pot), Spaced Out (bombs defusable in the same Shift, still on a different question), Cartographer (the hub previews the next Shift's Draw) |
+| Keep one peg | Pick one shop peg kind you own. It starts the next unit as one tier 1 copy |
+| Stakes | Opt-in for the next unit. Stake 1 is standard. 2: Certain debt 14. 3: hold at most 2 Second Chances. 4: Audits draw from bombs only. 5: Exam Day mixes in 2 concepts from earlier units. 6: Pretty sure debt 3. 7: no Earthquake. 8: all of these. Finishing at your highest stake with calibration grade 2 or better unlocks the next. Off in Calm mode. Honest betting stays optimal at every stake (tested) |
+| Alumni pegs | The 2 weakest concepts of each finished unit (up to 6 kept) ride into later units. When there are any, one rare Alumni peg sits on the board: it catches a ball and asks one of their questions (right x3, wrong x1). Never for sale. Their answers never move the new unit's mastery |
+| Collector's Audit | Due every 3 or 4 days of a run (seeded per unit). 5 questions from bombs then the weakest concepts, with one visible modifier (hardest questions only, double stakes, or no Second Chance). Clearing it (4 of 5 right) pays 25% of the Ledger Pot and unlocks a story line |
+| Collector story | Lines unlocked once each by what happened: first defuse, an honest wrong Guess, a right answer after 3 misses, a cleared Audit, a strong Exam Day, and kind words after a weak one (under 50%). Shown in the report's journal |
+| Achievements | Learning only: calibrated within 5 points over 20 answers, defused 5 bombs, a full Bingo card, Exam Day above 80% at Stake 3 or higher |
+
 ## 5. Board physics details
 
 - Board is 360 x 550 logical px, 7 rows of pegs (6 and 5 alternating), 7 chutes and 7 buckets.
@@ -163,10 +181,10 @@ Data model additions: `Attempt.exam` marks Exam Day answers. The store adds `Ses
 
 | File | Covers |
 |---|---|
-| `tests/engine.test.ts` | Bet table, break-evens at 50% and 83%, bonus ball and multiplier never move them, overclaiming earns less, calibration grade, honest confidence is optimal, Leitner moves, interval cap, targeting, retest picks a new question, calibration, readiness, seeded bank shape, unit name routing |
-| `tests/golden.test.ts` | Setup to Shift to Shop to Exam Day to Report, debt never touching chips, defusing never refunding debt, daily cap, flagging, streak multiplier, resuming mid-Shift and mid-question |
+| `tests/engine.test.ts` | Bet table, price formulas and caps, Ledger Pot, knowledge mechanics, Mastery Marks, draft offers, stakes keep honesty optimal, break-evens at 50% and 83%, bonus ball and multiplier never move them, overclaiming earns less, calibration grade, honest confidence is optimal, Leitner moves, interval cap, targeting, retest picks a new question, calibration, readiness, seeded bank shape, unit name routing |
+| `tests/golden.test.ts` | Setup to Shift to Shop to Exam Day to Report to Legacy Draft to a second unit (relics, kept peg, alumni, Spaced Out), Ledger Pot and Fever, Collector's Audit, stakes and Calm mode, Go Deeper, Keno, Mystery Facts, old-save migration, debt never touching chips, defusing never refunding debt, daily cap, flagging, streak multiplier, resuming mid-Shift and mid-question |
 | `tests/minigames.test.ts` | Prize Wheel segments, expected value and Calm mode payout, 21 Quiz values and bonus, Pop Quiz speed curve, proportional cheers |
-| `tests/tuning.test.ts` | Economy tuning, skill share of an honest player on plain and fully loaded boards, special pegs, MEGA BUCKET, click-to-drop, wall fairness, grazes |
+| `tests/tuning.test.ts` | Economy tuning, 1,000-student multi-Shift shop pacing and overconfidence check, board multiplier, Fever, Peg Hands, synergies, skill share of an honest player on plain and fully loaded boards, special pegs, MEGA BUCKET, click-to-drop, wall fairness, grazes |
 
 `npm run tune` runs only the tuning sim.
 
@@ -178,4 +196,7 @@ Data model additions: `Attempt.exam` marks Exam Day answers. The store adds `Ses
 4. The daily cap counts Shifts started, not finished.
 5. Flags are stored on the device only, so they do not improve a shared bank.
 6. The in-memory cache and rate limit reset on each server instance. Fine for a demo, not for a public deploy.
-7. No accessibility audit yet against the doc 06 checklist, especially the chaos skin's emoji buttons (labelled only "Mystery button").
+7. No accessibility audit yet against the doc 06 checklist, especially the chaos skin's emoji buttons (labelled only "Mystery button"), the Bingo grid and the scratch panels.
+8. The new screens (Legacy Draft, Bingo, Keno, Audit, scratch Report Card) pass type checks, the build and store-level tests, but have not been clicked through in a browser or on a phone yet.
+9. In Calm mode the board's buckets still use physics. Only the popup and bonus devices (Prize Wheel, Fever, Mystery Fact) resolve to their expected value. See doc 11.
+10. Raw chips do not punish overclaiming, because debt never touches chips. Honesty is optimal in Ledger net (chips minus debt), which the Exam Day summary and the Ledger Pot payout use. See doc 11.

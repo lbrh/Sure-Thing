@@ -6,7 +6,7 @@ import {
 import bank from "@/data/databases-101.json";
 import { SEEDED, loadUnit } from "@/lib/loadUnit";
 import type { Question } from "@/lib/engine";
-import { bingoCard, bingoLines, bingoMarked, factUnlocked, FREE, kenoBreakEven, kenoScore, defusePayout, examPotPayout, bestBet, betOutcome, boostPrice, breakEven, calibrationGap, calibrationGrade, evNet, incomeIndex, interest, pegPrice, rerollCost, studyPrice, tierUnlocked } from "@/lib/economy";
+import { draftOffers, masteryMarks, RELIC_IDS, stakeHas, stakeTable, bingoCard, bingoLines, bingoMarked, factUnlocked, FREE, kenoBreakEven, kenoScore, defusePayout, examPotPayout, bestBet, betOutcome, boostPrice, breakEven, calibrationGap, calibrationGrade, evNet, incomeIndex, interest, pegPrice, rerollCost, studyPrice, tierUnlocked } from "@/lib/economy";
 
 const now = new Date("2026-10-02T10:00:00");
 const fresh = (id = "c") => newConceptState(id, now);
@@ -262,5 +262,42 @@ describe("knowledge mechanics", () => {
     const s = { ...fresh(), attempts: 4, correctCount: 4 };
     expect(examForecast([fresh(), fresh()])).toEqual({ expected: 5, of: 10, answers: 0 });
     expect(examForecast([s, s]).expected).toBe(8);
+  });
+});
+
+describe("between runs", () => {
+  it("Mastery Marks: floor(2 * sqrt(3 * mastered + 2 * defused + 10 * grade + exam% / 5))", () => {
+    expect(masteryMarks({ conceptsMastered: 0, bombsDefused: 0, calibrationGrade: 0, examPercent: 0 })).toBe(0);
+    expect(masteryMarks({ conceptsMastered: 4, bombsDefused: 2, calibrationGrade: 3, examPercent: 70 })).toBe(Math.floor(2 * Math.sqrt(12 + 4 + 30 + 14)));
+    expect(masteryMarks({ conceptsMastered: 12, bombsDefused: 5, calibrationGrade: 3, examPercent: 100 })).toBe(19); // M = 36 + 10 + 30 + 20 = 96
+  });
+  it("draft offers 3 relics you don't carry", () => {
+    expect(draftOffers([], 1)).toHaveLength(3);
+    expect(draftOffers(["seal", "oldLedger"], 1).sort()).toEqual(RELIC_IDS.filter((r) => r !== "seal" && r !== "oldLedger").sort());
+  });
+  it("stakes 2 to 7 add one rule each, 8 has them all", () => {
+    expect(stakeHas(2, 2)).toBe(true);
+    expect(stakeHas(3, 2)).toBe(false);
+    expect([2, 3, 4, 5, 6, 7].every((r) => stakeHas(8, r))).toBe(true);
+    expect(stakeTable(2).debt).toEqual({ guess: 0, pretty: 2, certain: 14 });
+    expect(stakeTable(6).debt).toEqual({ guess: 0, pretty: 3, certain: 12 });
+    expect(stakeTable(8).debt).toEqual({ guess: 0, pretty: 3, certain: 14 });
+  });
+  it("at every stake, honest confidence still wins and overclaiming earns less", () => {
+    for (let stake = 1; stake <= 8; stake++) {
+      const t = stakeTable(stake);
+      const rand = rng(stake);
+      let honest = 0, over = 0;
+      for (let i = 0; i < 20000; i++) {
+        const p = 0.4 + rand() * 0.6;
+        const right = rand() < p;
+        const net = (c: Confidence) => { const o = betOutcome(c, right, 1, t); return o.chips - o.debt; };
+        const h = bestBet(p, t);
+        honest += net(h);
+        over += net(h === "guess" ? "pretty" : "certain");
+        for (const c of ["guess", "pretty", "certain"] as Confidence[]) expect(evNet(h, p, t)).toBeGreaterThanOrEqual(evNet(c, p, t));
+      }
+      expect(over).toBeLessThan(honest);
+    }
   });
 });

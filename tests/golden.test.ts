@@ -5,7 +5,7 @@ vi.hoisted(() => {
   const m = new Map<string, string>();
   globalThis.localStorage = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) } as Storage;
 });
-import { mergeSave, useGame, SHIFT_LENGTH } from "@/lib/store";
+import { auditDue, initialMeta, mergeSave, useGame, SHIFT_LENGTH } from "@/lib/store";
 import { createDrop, layoutPegs } from "@/lib/board";
 import { hashString, pegState, readiness, type OptionId } from "@/lib/engine";
 import { loadUnit } from "@/lib/loadUnit";
@@ -157,11 +157,74 @@ describe("golden path", () => {
     expect(g().exam!.potPaid!).toBeGreaterThanOrEqual(0);
     const states = g().concepts.map((c) => g().conceptState[c.id]);
     expect(readiness(states, g().exam)).toBeGreaterThan(0);
+
+    // Report, then the Legacy Draft: Marks come from learning, never chips
+    g().finishRun();
+    expect(g().screen).toBe("draft");
+    const marks = g().meta.marks;
+    expect(marks).toBe(g().meta.draft!.gained);
+    expect(marks).toBeGreaterThan(0);
+    useGame.setState({ meta: { ...g().meta, marks: 20 } });
+    const offer = g().meta.draft!.offers[0];
+    g().draftReroll(); // 2 Marks, then 3
+    expect(g().meta.marks).toBe(18);
+    g().draftReroll();
+    expect(g().meta.marks).toBe(15);
+    useGame.setState({ meta: { ...g().meta, draft: { ...g().meta.draft!, offers: ["oldLedger", "spacedOut", "seal"] } } });
+    g().draftPick("oldLedger");
+    g().draftPick("spacedOut");
+    g().draftPick("seal");
+    expect(g().meta.relics).toEqual(["oldLedger", "spacedOut", "seal"]);
+    expect(g().meta.marks).toBe(6);
+    useGame.setState({ meta: { ...g().meta, draft: { ...g().meta.draft!, offers: ["cartographer"] } } });
+    g().draftPick("cartographer"); // carry at most 3
+    expect(g().meta.relics).toHaveLength(3);
+    g().draftPick("cartographer", "seal");
+    expect(g().meta.relics).toEqual(["oldLedger", "spacedOut", "cartographer"]);
+    expect(offer).toBeTruthy();
+    useGame.setState({ inventory: { ...g().inventory, pegs: [{ kind: "wheel", tier: 3 }, { kind: "wheel", tier: 3 }] } });
+    g().keepPeg("wheel");
+    g().setStake(5); // not unlocked yet
+    expect(g().meta.stake).toBe(1);
+    const alumni = g().meta.alumni.map((a) => a.concept.id);
+    expect(alumni.length).toBeGreaterThan(0);
+
+    // Second run: meta kept, run cleared
+    g().newUnit();
+    expect(g().screen).toBe("setup");
+    const soil = await loadUnit("Soil Chem", "2026-10-11", () => {});
+    g().setup(soil.unit, soil.concepts, soil.questions);
+    expect(g().meta.relics).toEqual(["oldLedger", "spacedOut", "cartographer"]);
+    expect(g().meta.runs).toBe(1);
+    expect(g().chips).toBe(5);
+    expect(g().debt).toBe(0);
+    expect(g().attempts).toEqual([]);
+    expect(g().pot).toBe(10); // Old Ledger
+    expect(g().inventory.pegs).toEqual([{ kind: "wheel", tier: 1 }]); // kept peg, copy 1, tier 1
+    expect(g().meta.keptPeg).toBeNull();
+    for (const id of alumni) expect(g().questions.some((q) => q.conceptId === id)).toBe(true); // Alumni pegs draw on these
+    expect(Object.keys(g().conceptState)).toEqual(soil.concepts.map((c) => c.id));
+
+    // Spaced Out: a bomb defuses in the same Shift, on a different question
+    useGame.setState({ shiftLog: { date: "", count: 0 } });
+    g().startShift();
+    const first = g().session!.offer[0];
+    g().choose(first);
+    answer("certain", false);
+    drop();
+    expect(g().conceptState[first].bombActive).toBe(true);
+    let tries = 0;
+    while (g().conceptState[first].bombActive && tries++ < SHIFT_LENGTH - 1) {
+      g().choose(g().session!.offer.includes(first) ? first : g().session!.offer[0]);
+      answer("pretty");
+      drop();
+    }
+    expect(g().conceptState[first].bombActive).toBe(false);
   });
 
   it("daily cap stops new Shifts", () => {
     const today = new Date().toISOString().slice(0, 10);
-    useGame.setState({ shiftLog: { date: today, count: 6 }, screen: "hub" });
+    useGame.setState({ shiftLog: { date: today, count: 6 }, screen: "hub", session: null });
     g().startShift();
     expect(g().screen).toBe("hub");
     expect(g().line).toMatch(/Enough for today/);
@@ -333,5 +396,51 @@ describe("knowledge mechanics through the store", () => {
     }
     expect(facts).toEqual([false, true, false, true]);
     g().updateSettings({ calm: false });
+  });
+});
+
+describe("Collector's Audit and stakes", () => {
+  it("comes due every 3 to 4 days, pays a pot share when cleared, and moves the story on", async () => {
+    const l = await loadUnit("Databases 101", "2026-10-11", () => {});
+    g().setup(l.unit, l.concepts, l.questions);
+    expect(auditDue(g())).toBe(false);
+    const past = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+    useGame.setState({ run: { ...g().run, start: past }, pot: 20, meta: { ...g().meta, story: [] } });
+    expect(auditDue(g())).toBe(true);
+    g().startAudit();
+    expect(g().session!.kind).toBe("audit");
+    expect(g().session!.auditMod).toBeTruthy();
+    for (let i = 0; i < 5; i++) {
+      answer("pretty");
+      drop();
+    }
+    expect(g().screen).toBe("summary");
+    expect(g().session!.potPaid).toBe(5);
+    expect(g().pot).toBe(15);
+    expect(g().run.auditsDone).toBe(1);
+    expect(g().meta.story).toContain("auditCleared");
+    expect(auditDue(g())).toBe(false);
+  });
+  it("stakes are opt-in, unlock in order with calibration grade 2, and are off in Calm mode", async () => {
+    useGame.setState({ meta: { ...g().meta, stakeUnlocked: 3, stake: 1 } });
+    g().setStake(3);
+    expect(g().meta.stake).toBe(3);
+    g().setStake(4);
+    expect(g().meta.stake).toBe(3);
+    const l = await loadUnit("Databases 101", "2026-10-11", () => {});
+    g().setup(l.unit, l.concepts, l.questions);
+    expect(g().run.stake).toBe(3);
+    useGame.setState({ chips: 999 });
+    for (let i = 0; i < 4; i++) g().buy("secondChance");
+    expect(g().inventory.secondChance).toBe(2); // Stake 3: one fewer Second Chance
+    g().updateSettings({ calm: true });
+    g().setup(l.unit, l.concepts, l.questions);
+    expect(g().run.stake).toBe(1);
+    g().updateSettings({ calm: false });
+  });
+  it("an old save gets empty meta and run state", () => {
+    const m = mergeSave({ chips: 3 }, g());
+    expect(m.meta).toEqual(initialMeta);
+    expect(m.run.auditsDone).toBe(0);
   });
 });

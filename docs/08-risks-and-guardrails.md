@@ -39,7 +39,7 @@ Not so different:
 8. **Daily Shift cap** (default 6) with a friendly learning-science message (sleep and spaced retests help).
 9. **Calm mode.** Renames bets and chips, removes the parlour skin and sound, same mechanics.
 10. **Age.** Any public release is 18+ until it has been reviewed by relevant experts. A school-age version would not use betting mechanics at all.
-11. **No streak punishment.** Missing a day never takes anything away.
+11. **No streak punishment.** Missing a day never takes anything away. Achievements reward learning, never time played or streak length. Stakes are opt-in and off in Calm mode.
 12. **A harm-reduction advisor reviews the mechanics and copy before any public launch.**
 
 ### Where the build stands (October 2026): decided, reskin

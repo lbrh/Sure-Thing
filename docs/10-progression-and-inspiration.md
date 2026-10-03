@@ -47,11 +47,11 @@ If prices grow and income does not, the shop turns into a wall. Income should ri
 - [x] Defuser and Second Chance never cost more than 3x base.
 - [x] Odds and prices stay visible before purchase. Nothing is bought with money.
 
-### 1.5 Further ideas from idle games (optional)
+### 1.5 Prestige and achievements (built October 2026)
 
-- **Prestige.** Passing Exam Day or starting a new unit converts lifetime chips into a small permanent perk (a free Second Chance per Shift, for example), the way Cookie Clicker's heavenly chips do.
-- **Milestones.** Unlocks at lifetime chip thresholds (new skins, new peg types, new Collector lines).
-- **Achievements** tied to learning, not grinding: "Defused 5 bombs", "Calibrated within 5 points over 20 answers".
+- **Prestige** is the Legacy Draft. It converts learning, never chips, into Mastery Marks: `marks = floor(2 * sqrt(3 * conceptsMastered + 2 * bombsDefused + 10 * calibrationGrade + examPercent / 5))`. Marks buy relics that carry between units. The square root keeps later units from snowballing. Full rules in doc 09, section 4a.
+- **Milestones** by lifetime chips were dropped: they reward grinding. Stakes unlock by finishing a unit well calibrated instead.
+- **Achievements** are learning only: calibrated within 5 points over 20 answers, defused 5 bombs, a full Bingo card, Exam Day above 80% at Stake 3.
 
 ## 2. Ideas from Peggle
 
@@ -105,8 +105,10 @@ These are well-documented ways gambling products keep people playing against the
 - **Insurance or side bets that make Certain safe.** These break the honest-confidence maths in doc 02, section 4.1.
 - **Anything bought with money**, including chip packs and paid spins. Breaks guardrails 1 and 2.
 
-## 4. Before building any of this
+- **Never build:** slots, baccarat, craps, sic bo, lotteries, claw machines, coin pushers, parlays, loot boxes, bonus buys, near-miss animations, chip stakes on random events, double or nothing after a loss, login streaks, timed offers, autoplay or turbo drops, raw-chip leaderboards, late-night notifications.
 
-1. Settle the open casino imagery decision in doc 08, section 1. Sections 2 and 3 move the game further towards a casino look.
-2. Every new chance mechanic shows its odds before the player commits, and is skipped (same result, no animation) in Calm mode and with reduced motion, like the existing capture pegs.
-3. Add each new payout to the tuning sim before it ships.
+## 4. Rules for anything new
+
+1. The casino imagery decision is made: game show, not casino (doc 08, section 1).
+2. Every chance mechanic shows its odds before the player commits, never takes a stake, and pays its expected value instantly in Calm mode.
+3. Add each new payout to the tuning sim before it ships, and keep an honest player's skill share at 80% or more.

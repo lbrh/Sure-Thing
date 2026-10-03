@@ -51,9 +51,10 @@ export const BUCKET_TOP = TOP + ROWS * ROW_GAP + 10;
 export const WALL_PEGS_Y = Array.from({ length: ROWS }, (_, r) => TOP + r * ROW_GAP + ROW_GAP / 2);
 
 /** Shop pegs. Hold pegs capture the ball and open a popup; the rest act on the physics. */
-export type SpecialKind = "wheel" | "quiz21" | "quiz" | "splitter" | "blackhole" | "bumper";
-export type HoldKind = "wheel" | "quiz21" | "quiz";
-export const isHold = (k?: SpecialKind): k is HoldKind => k === "wheel" || k === "quiz21" || k === "quiz";
+export type SpecialKind = "wheel" | "quiz21" | "quiz" | "splitter" | "blackhole" | "bumper" | "alumni";
+/** Alumni is never sold: a rare peg for a weak concept from an earlier unit, asking one of its questions. */
+export type HoldKind = "wheel" | "quiz21" | "quiz" | "alumni";
+export const isHold = (k?: SpecialKind): k is HoldKind => k === "wheel" || k === "quiz21" || k === "quiz" || k === "alumni";
 
 export interface PegSpec {
   x: number;
@@ -156,6 +157,7 @@ export interface DropOptions {
   fever?: boolean; // Fever round: five Fever buckets
   streakMult?: number; // synergy: Prize Wheel segments grow with streak tier
   synergies?: boolean; // default on; off only to measure them
+  wheelExtra?: number[]; // Seal of Approval: extra Prize Wheel segments this Shift
 }
 
 /** Prize Wheel synergy: +1 on every segment at a x2 streak or more, +2 at x3. */
@@ -175,7 +177,7 @@ export const wheelResult = (h: Pick<Hold, "seed" | "segments">) => h.segments[wh
 /** Outcome used when nobody plays the popup (Skip, reduced motion, tests). Calm mode pays the wheel's expected value. */
 export function autoResult(h: Pick<Hold, "kind" | "seed" | "segments">, calm = false): HoldResult {
   if (h.kind === "wheel") return { bonus: calm ? wheelEV(h.segments) : wheelResult(h) };
-  if (h.kind === "quiz") return { mult: 1 }; // no answer: the ball keeps its value
+  if (h.kind === "quiz" || h.kind === "alumni") return { mult: 1 }; // no answer: the ball keeps its value
   return {}; // 21 Quiz: no hand played, no bonus
 }
 
@@ -272,8 +274,8 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     if (isHold(k)) {
       b.held = true;
       Matter.Composite.remove(world, b.body);
-      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total), segments: tierSegments(tier, streakTier(opts.streakMult)) });
-      say(i, k === "quiz" ? "POP QUIZ!" : k === "wheel" ? "PRIZE WHEEL!" : "21 QUIZ!");
+      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total), segments: [...tierSegments(tier, streakTier(opts.streakMult)), ...(opts.wheelExtra ?? [])] });
+      say(i, k === "quiz" ? "POP QUIZ!" : k === "wheel" ? "PRIZE WHEEL!" : k === "alumni" ? "ALUMNI!" : "21 QUIZ!");
     } else if (k === "splitter" && !b.child && balls.length < MAX_BALLS) {
       for (const dx of [-1, 1]) {
         // synergy: with a Black Hole on the board, the copies converge on the centre instead of fanning out
@@ -377,7 +379,7 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     const [hold] = holds.splice(h, 1);
     const b = balls.find((x) => x.id === id)!;
     const p = pegs[hold.peg];
-    if (hold.kind === "quiz") {
+    if (hold.kind === "quiz" || hold.kind === "alumni") {
       const value = Math.round(hold.ballValue * Math.max(1, r.mult ?? 1));
       skill += value - hold.ballValue;
       return payout(b, p.x, p.y - 14, value, hold.ballValue);

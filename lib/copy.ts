@@ -18,7 +18,21 @@ export const LINES = {
   cap: "Enough for today. Your brain files things while you sleep. See you tomorrow.",
   exam: "Exam Day. No chips, no shop. Just you and the ledger.",
   hub: "Back again. The ledger's open.",
+  audit: (mod: string) => `Audit time. I'm checking your bombs and your weak spots. Today's rule: ${mod}`,
+  auditCleared: (paid: number) => `Audit cleared. ${paid > 0 ? `${paid} from the pot is yours. ` : ""}I'm almost impressed.`,
+  auditMissed: "Audit not cleared. Nothing lost. I'll be back in a few days.",
 };
+
+/** The Collector's story: lines unlocked by what actually happened, once each. */
+export const STORY = {
+  firstDefuse: "You came back for it. Most people don't. I'm crossing that one out in ink.",
+  honestGuess: "You said Guess, and you were right to. That's the most honest thing anyone's told me this week.",
+  comeback: "Three misses, then that. I've seen comebacks start smaller.",
+  auditCleared: "My audits are meant to find things. That one found you knew them.",
+  goodExam: "A clean ledger. Well, cleaner. I'll find something next unit.",
+  badExam: "A rough Exam Day. It's a mock for a reason: now you know exactly what to study, and that's worth more than a good score today.",
+} as const;
+export type StoryId = keyof typeof STORY;
 
 export function terms(calm: boolean) {
   return calm

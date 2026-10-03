@@ -8,11 +8,13 @@ import { CheerOverlay, HoldModal, ITEM_INFO } from "./Mods";
 import { ColorSquares, Counter, Marquee, Window } from "./ui";
 import Chaos, { Banners, EmojiSwarm, confetti } from "./Chaos";
 import Seal, { sealDo } from "./Seal";
+import { Draft, Journal } from "./Meta";
 import { BingoCard, GoDeeper, KenoPanel, MysteryFact, ReadinessOdds, ScratchRows } from "./Knowledge";
-import { inProgress, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
+import { auditDue, inProgress, sessionName, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
 import { FEVER_BALLS, FEVER_FLAT, FEVER_MULTIPLIERS, layoutPegs, placeSpecials, type Hold, type HoldResult, type PegSpec } from "@/lib/board";
 import { badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
-import { answerMult, breakEven, DEBT, GAIN, HANDS, MULT_CAP, pegHand, skillShare, SKILL_TARGET } from "@/lib/economy";
+import { answerMult, AUDIT_CLEAR, AUDIT_MODS, breakEven, GAIN, HANDS, MULT_CAP, pegHand, RELICS, SEAL_SEGMENT, skillShare, SKILL_TARGET, STAKES, stakeTable } from "@/lib/economy";
+import { drawOffer } from "@/lib/engine";
 import { CONF_LABEL, LINES, terms } from "@/lib/copy";
 import { sfx } from "@/lib/sound";
 import { loadUnit, SEEDED } from "@/lib/loadUnit";
@@ -107,6 +109,8 @@ function Screen({ reduced }: { reduced: boolean }) {
       return <Report />;
     case "settings":
       return <SettingsScreen />;
+    case "draft":
+      return <Draft />;
     default:
       return <Hub reduced={reduced} />;
   }
@@ -131,9 +135,11 @@ function usePegs() {
   const concepts = useGame((s) => s.concepts);
   const conceptState = useGame((s) => s.conceptState);
   const owned = useGame((s) => s.inventory.pegs);
+  // one rare Alumni peg when an earlier unit left a weak concept behind
+  const alumni = useGame((s) => s.meta.alumni.some((a) => s.questions.some((q) => q.conceptId === a.concept.id)));
   const pegs = useMemo(
-    () => placeSpecials(layoutPegs(concepts.map((c) => c.id), hashString(unit?.id ?? "")), owned),
-    [concepts, unit?.id, owned]
+    () => placeSpecials(layoutPegs(concepts.map((c) => c.id), hashString(unit?.id ?? "")), alumni ? [...owned, { kind: "alumni", tier: 1 }] : owned),
+    [concepts, unit?.id, owned, alumni]
   );
   const states = useMemo(() => Object.fromEntries(concepts.map((c) => [c.id, pegState(conceptState[c.id])])), [concepts, conceptState]);
   return { pegs, states };
@@ -184,6 +190,8 @@ function Legend() {
 
 export function OddsTable() {
   const calm = useGame((s) => s.settings.calm);
+  const stake = useGame((s) => (s.settings.calm ? 1 : s.run.stake));
+  const DEBT = stakeTable(stake).debt;
   const t = terms(calm);
   return (
     <table>
@@ -402,13 +410,24 @@ function Hub({ reduced }: { reduced: boolean }) {
             {mods.length > 0 && <li>Ready for next Shift: {mods.join(", ")}</li>}
           </ul>
           <ReadinessOdds />
+          {g.meta.relics.includes("cartographer") && (
+            <p className="small mono">
+              CARTOGRAPHER: NEXT SHIFT OPENS ON {drawOffer(states, [], days, g.attempts.length).map(name).join(", ").toUpperCase()}
+            </p>
+          )}
+          {(g.meta.relics.length > 0 || g.run.stake > 1) && (
+            <p className="small">
+              {g.meta.relics.length > 0 && `Relics: ${g.meta.relics.map((r) => RELICS[r].name).join(", ")}. `}
+              {g.run.stake > 1 && !g.settings.calm && `Stake ${g.run.stake}: ${STAKES[g.run.stake]}`}
+            </p>
+          )}
         </Window>
         <Collector line={capHit ? LINES.cap : g.line || LINES.hub} />
         {g.pot > 0 && <Collector line={LINES.pot(g.pot)} />}
         <div className="stack">
           {inProgress(g.session) ? (
             <button className="btn success big pulse-glow" onClick={g.resume}>
-              Resume {g.session.kind === "exam" ? "Exam Day" : g.session.kind === "defuse" ? "Defuser" : "Shift"}: Q{Math.min(g.session.answered + (g.session.pendingBalls ? 0 : 1), g.session.total)} of {g.session.total}
+              Resume {sessionName(g.session)}: Q{Math.min(g.session.answered + (g.session.pendingBalls ? 0 : 1), g.session.total)} of {g.session.total}
             </button>
           ) : (
             <button className="btn success big" onClick={g.startShift} disabled={capHit}>
@@ -420,6 +439,11 @@ function Hub({ reduced }: { reduced: boolean }) {
               Shop <span className="badge hot pulse-glow">HOT!</span>
             </button>
             <button className="btn" onClick={() => g.go("report")}>Report</button>
+            {auditDue(g) && !inProgress(g.session) && (
+              <button className="btn primary pulse-glow" onClick={g.startAudit} title="A boss round from your bombs and weak spots">
+                Collector&apos;s Audit
+              </button>
+            )}
             <button className="btn danger" onClick={g.startExam} disabled={g.shiftsDone < 1 || inProgress(g.session)} title={inProgress(g.session) ? "Finish what you started first" : g.shiftsDone < 1 ? "Play one Shift first" : ""}>
               Exam Day
             </button>
@@ -493,6 +517,7 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
   const t = terms(g.settings.calm);
   const exam = s.kind === "exam";
   const first = g.attempts.length === 0;
+  const debtOf = stakeTable(g.settings.calm ? 1 : g.run.stake).debt;
 
   useEffect(() => {
     setChosen(null);
@@ -515,7 +540,7 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
   }, [chosen, conf, g, s.eliminated]);
 
   if (!q || !concept) return null;
-  const header = exam ? `EXAM_DAY.EXE - Q${s.answered + 1} OF ${s.total}` : s.kind === "defuse" ? "DEFUSER.EXE" : `SHIFT_${g.shiftsDone + 1}.EXE - Q${s.answered + 1} OF ${s.total}`;
+  const header = s.kind === "audit" ? `COLLECTORS_AUDIT.EXE - Q${s.answered + 1} OF ${s.total}` : exam ? `EXAM_DAY.EXE - Q${s.answered + 1} OF ${s.total}` : s.kind === "defuse" ? "DEFUSER.EXE" : `SHIFT_${g.shiftsDone + 1}.EXE - Q${s.answered + 1} OF ${s.total}`;
 
   return (
     <div className="grid2 play">
@@ -544,7 +569,7 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
             {CONFS.map((c, i) => (
               <button key={c} role="radio" aria-checked={conf === c} className={`btn conf ${c}`} onClick={() => setConf(c)}>
                 <strong>{CONF_LABEL[c]}</strong>
-                <span className="mono">{exam ? `~${[35, 67, 92][i]}% sure` : `+${GAIN[c]}${DEBT[c] ? ` · debt ${DEBT[c]}` : " · no debt"}`}</span>
+                <span className="mono">{exam ? `~${[35, 67, 92][i]}% sure` : `+${GAIN[c]}${debtOf[c] ? ` · debt ${debtOf[c]}` : " · no debt"}`}</span>
               </button>
             ))}
           </div>
@@ -744,7 +769,8 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips:
   const fever = Boolean(s.fever) && !feverFlat;
   const balls = feverFlat ? s.pendingBalls - FEVER_BALLS : s.pendingBalls;
   const streakMult = streakMultiplier(g.streak);
-  const drop = useMemo(() => ({ balls, seed: s.dropSeed, magnet, mega: megaMod, quake, fever, streakMult }), [balls, s.dropSeed, magnet, megaMod, quake, fever, streakMult]);
+  const wheelExtra = s.seal ? [SEAL_SEGMENT] : undefined; // Seal of Approval
+  const drop = useMemo(() => ({ balls, seed: s.dropSeed, magnet, mega: megaMod, quake, fever, streakMult, wheelExtra }), [balls, s.dropSeed, magnet, megaMod, quake, fever, streakMult, wheelExtra?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // sized to the payout: a small bonus gets a small cheer, only the biggest shakes
   const onCheer = (level: 1 | 2 | 3, value: number) => {
@@ -824,8 +850,9 @@ function Summary({ reduced }: { reduced: boolean }) {
   const name = (id: string) => g.concepts.find((c) => c.id === id)?.name ?? id;
   return (
     <section className="narrow">
-      <Window title={s.kind === "defuse" ? "DEFUSER_LOG.TXT" : "SHIFT_COMPLETE.TXT"}>
-        <h2 className="rainbow">{s.kind === "defuse" ? "Defuser done" : "Shift complete!"}</h2>
+      <Window title={s.kind === "defuse" ? "DEFUSER_LOG.TXT" : s.kind === "audit" ? "AUDIT_REPORT.TXT" : "SHIFT_COMPLETE.TXT"}>
+        <h2 className="rainbow">{s.kind === "defuse" ? "Defuser done" : s.kind === "audit" ? (s.correct >= AUDIT_CLEAR ? "Audit cleared!" : "Audit over") : "Shift complete!"}</h2>
+        {s.kind === "audit" && s.auditMod && <p className="small">Modifier: {AUDIT_MODS[s.auditMod]} Clear with {AUDIT_CLEAR} right.</p>}
         <Collector line={g.line} />
         <p className="small">Your Shift Report Card. Everything on it is already decided: scratch to read it, or reveal it all.</p>
         <ScratchRows
@@ -833,6 +860,7 @@ function Summary({ reduced }: { reduced: boolean }) {
           rows={([
             ["Right", `${s.correct} of ${s.answered}`],
             ["Earned", `+${s.chipsEarned} ${t.chips}`],
+            (s.potPaid ?? 0) > 0 && ["From the Ledger Pot", `+${s.potPaid}`],
             (s.calBonus ?? 0) > 0 && ["Calibration bonus", `+${s.calBonus} (3 per grade point)`],
             (s.bingoBonus ?? 0) > 0 && ["Concept Bingo lines", `+${s.bingoBonus}`],
             s.keno?.length && ["Calibration Keno", `+${s.kenoChips ?? 0} ${t.chips}, +${s.kenoDebt ?? 0} debt`],
@@ -882,7 +910,7 @@ function SettingsScreen() {
     <section className="narrow">
       <Window title="CONTROL_PANEL.EXE">
         <div className="stack">
-          <Toggle label="Calm mode" hint="No popups, strobes, shakes or sound, whatever skin you picked in the Shop. 'Points' instead of chips. Same mechanics." on={s.calm} set={(v) => g.updateSettings({ calm: v })} />
+          <Toggle label="Calm mode" hint="No strobes, shakes or sound, whatever skin you picked in the Shop. Chance devices pay their average instantly. Stakes are off. 'Points' instead of chips." on={s.calm} set={(v) => g.updateSettings({ calm: v })} />
           <Toggle label="Sound" hint="Ticks, boings and the odd arpeggio." on={s.sound} set={(v) => g.updateSettings({ sound: v })} />
           <Toggle label="Reduced motion" hint="Drops resolve instantly. No shake." on={s.reducedMotion} set={(v) => g.updateSettings({ reducedMotion: v })} />
           <label className="row between">
@@ -899,7 +927,7 @@ function SettingsScreen() {
       </Window>
       <div className="row">
         <button className="btn" onClick={() => g.go("hub")}>Back</button>
-        <button className="btn danger" onClick={() => confirm("Start a new unit? This clears your progress on this one.") && g.reset()}>
+        <button className="btn danger" onClick={() => confirm("Start a new unit? This clears your progress on this one. Mastery Marks, relics and achievements are kept.") && g.reset()}>
           New unit
         </button>
       </div>

@@ -245,3 +245,78 @@ export const factUnlocked = (roll: number, calm: boolean, certainRightCount: num
 /** Go Deeper: one harder follow-up after a right answer only. Flat chips, no bet, no mastery change. */
 export const DEEPER_CHIPS = 3;
 
+
+/* ---------- Between runs: Mastery Marks, Legacy Draft, Stakes ---------- */
+
+/** M = 3 * conceptsMastered + 2 * bombsDefused + 10 * calibrationGrade + examPercent / 5, marks = floor(2 * sqrt(M)). Chips and time played never count. */
+export function masteryMarks(r: { conceptsMastered: number; bombsDefused: number; calibrationGrade: number; examPercent: number }) {
+  const M = 3 * r.conceptsMastered + 2 * r.bombsDefused + 10 * r.calibrationGrade + r.examPercent / 5;
+  return Math.floor(2 * Math.sqrt(Math.max(0, M)));
+}
+
+export type RelicId = "seal" | "oldLedger" | "spacedOut" | "cartographer";
+export const RELICS: Record<RelicId, { name: string; effect: string }> = {
+  seal: { name: "Seal of Approval", effect: "Your first right Certain answer each Shift adds a +5 segment to every Prize Wheel for the rest of that Shift." },
+  oldLedger: { name: "Old Ledger", effect: "Start each unit with 10 chips already in the Ledger Pot." },
+  spacedOut: { name: "Spaced Out", effect: "Bombs become defusable a Shift earlier: a right answer on a different question in the same Shift defuses them." },
+  cartographer: { name: "Cartographer", effect: "The hub previews the concepts your next Shift's Draw will offer." },
+};
+export const RELIC_IDS = Object.keys(RELICS) as RelicId[];
+export const RELIC_COST = 3; // Marks to take a relic
+export const MAX_RELICS = 3;
+export const SEAL_SEGMENT = 5;
+/** Legacy Draft rerolls cost 2 Marks, rising by 1. */
+export const draftRerollCost = (rerolls: number) => 2 + rerolls;
+/** 3 relic offers you don't already carry (fewer if the pool runs out), seeded so a reroll is a fresh draw. */
+export function draftOffers(carried: RelicId[], seed: number): RelicId[] {
+  const rand = rng(seed);
+  return RELIC_IDS.filter((r) => !carried.includes(r))
+    .map((r) => ({ r, k: rand() }))
+    .sort((a, b) => a.k - b.k)
+    .slice(0, 3)
+    .map((x) => x.r);
+}
+
+/** Stakes: opt-in, each unlocked by finishing the one before at calibration grade 2 or better. Off in Calm mode. */
+export const MAX_STAKE = 8;
+export const STAKES: Record<number, string> = {
+  1: "Standard rules.",
+  2: "Certain costs 14 debt when wrong, not 12.",
+  3: "One fewer Second Chance: you can hold at most 2.",
+  4: "Collector's Audits draw from bombs only.",
+  5: "Exam Day mixes in concepts from your previous unit.",
+  6: "Pretty sure costs 3 debt when wrong, not 2.",
+  7: "No Earthquake in the shop.",
+  8: "All of the above.",
+};
+/** Stakes 2 to 7 each add one rule; stake 8 has all of them. */
+export const stakeHas = (stake: number, rule: number) => (stake >= MAX_STAKE ? rule > 1 : stake === rule);
+export function stakeTable(stake: number): BetTable {
+  return {
+    gain: GAIN,
+    debt: { guess: 0, pretty: stakeHas(stake, 6) ? 3 : DEBT.pretty, certain: stakeHas(stake, 2) ? 14 : DEBT.certain },
+  };
+}
+export const SECOND_CHANCE_MAX = 3;
+export const secondChanceMax = (stake: number) => (stakeHas(stake, 3) ? SECOND_CHANCE_MAX - 1 : SECOND_CHANCE_MAX);
+
+/** Learning achievements only: never time played or streak length. */
+export type AchievementId = "calibrated20" | "defused5" | "fullBingo" | "stake3Exam80";
+export const ACHIEVEMENTS: Record<AchievementId, string> = {
+  calibrated20: "Calibrated within 5 points over 20 answers",
+  defused5: "Defused 5 bombs",
+  fullBingo: "Completed a full Concept Bingo card",
+  stake3Exam80: "Exam Day above 80% at Stake 3 or higher",
+};
+
+/** Collector's Audit: a boss round every 3 to 4 days of a run, with one visible modifier. */
+export const AUDIT_LENGTH = 5;
+export const AUDIT_CLEAR = 4; // right answers to clear it
+export const AUDIT_POT_SHARE = 0.25; // clearing pays this share of the Ledger Pot
+export type AuditMod = "hard" | "double" | "noSecondChance";
+export const AUDIT_MODS: Record<AuditMod, string> = {
+  hard: "Hardest questions only.",
+  double: "Double stakes: every gain and every debt x2.",
+  noSecondChance: "No Second Chance.",
+};
+export const auditEvery = (seed: number) => 3 + (seed % 2);

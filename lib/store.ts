@@ -6,17 +6,19 @@ import {
   daysUntil, drawOffer, hashString, pegState, rng, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
   type Attempt, type Concept, type ConceptState, type Confidence, type ExamResult, type OptionId, type Question,
 } from "./engine";
-import { LINES } from "./copy";
+import { LINES, STORY, type StoryId } from "./copy";
 import {
   answerMult, betOutcome, bingoCard, bingoLines, bingoMarked, BINGO_LINE, DEEPER_CHIPS, factUnlocked, kenoScore, calibrationBonus, pegHand, type HandCard, defusePayout, examPotPayout, POT_PER_BOMB, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
-  type PriceCtx,
+  ACHIEVEMENTS, AUDIT_CLEAR, AUDIT_LENGTH, AUDIT_MODS, AUDIT_POT_SHARE, auditEvery, draftOffers, draftRerollCost, masteryMarks, MAX_RELICS, MAX_STAKE, RELIC_COST,
+  secondChanceMax, stakeHas, stakeTable, type AchievementId, type AuditMod, type RelicId,
+  type Item, type PegKind, type PriceCtx,
 } from "./economy";
 import { FEVER_BALLS, FEVER_FLAT, type OwnedPeg, type SpecialKind } from "./board";
 
-export type Screen = "setup" | "intro" | "hub" | "draw" | "question" | "reveal" | "board" | "summary" | "shop" | "report" | "settings";
-export type SessionKind = "shift" | "defuse" | "exam";
+export type Screen = "setup" | "intro" | "hub" | "draw" | "question" | "reveal" | "board" | "summary" | "shop" | "report" | "settings" | "draft";
+export type SessionKind = "shift" | "defuse" | "exam" | "audit";
 export type ShiftMod = "magnet" | "mega" | "quake";
-export type ShopItem = "secondChance" | "defuser" | ShiftMod | SpecialKind;
+export type ShopItem = Item; // everything for sale (never the Alumni peg)
 
 export const SHIFT_LENGTH = 8;
 export const EXAM_LENGTH = 10;
@@ -24,7 +26,7 @@ export const START_CHIPS = 5;
 /** Pegs renamed by the game-show reskin, for old saves. */
 const RENAMED: Record<string, SpecialKind> = { roulette: "wheel", blackjack: "quiz21" };
 export const SHIFT_MODS: ShiftMod[] = ["magnet", "mega", "quake"];
-export const SPECIALS: SpecialKind[] = ["wheel", "quiz21", "quiz", "splitter", "blackhole", "bumper"];
+export const SPECIALS: PegKind[] = ["wheel", "quiz21", "quiz", "splitter", "blackhole", "bumper"];
 
 export interface Unit {
   id: string;
@@ -39,7 +41,9 @@ export interface Session {
   answered: number;
   recent: string[];
   offer: string[];
-  plan: string[]; // exam concept order
+  plan: string[]; // exam and audit concept order
+  auditMod?: AuditMod; // the Collector's Audit's one visible modifier
+  seal?: boolean; // Seal of Approval fired this Shift: an extra wheel segment
   conceptId?: string;
   questionId?: string;
   shownAt?: number;
@@ -61,6 +65,7 @@ export interface Session {
   feverChips?: number;
   calBonus?: number; // paid at the end of a Shift
   interest?: number;
+  potPaid?: number; // Audit payout
   bombsPlanted: string[];
   bombsDefused: string[];
   readinessBefore: number;
@@ -70,6 +75,8 @@ export interface Session {
   finished?: boolean; // reached the summary
   resume?: Screen; // where to pick up if you left mid-session
 }
+
+export const sessionName = (s: Session) => ({ exam: "Exam Day", defuse: "Defuser", audit: "Collector's Audit", shift: "Shift" })[s.kind];
 
 const PLAY_SCREENS: Screen[] = ["draw", "question", "reveal", "board"];
 /** A Shift, Defuser or Exam Day you've started but not finished (you may have wandered off to the Shop). */
@@ -108,7 +115,37 @@ export interface Settings {
   reducedMotion: boolean;
 }
 
+/** Between-runs progress. Survives "New unit": only the run is cleared. */
+export interface Meta {
+  marks: number; // Mastery Marks to spend
+  marksEarned: number;
+  relics: RelicId[]; // at most 3
+  keptPeg: SpecialKind | null; // carried into the next unit at copy 1
+  stake: number; // chosen for the next unit (1 = standard)
+  stakeUnlocked: number;
+  alumni: { concept: Concept; questions: Question[] }[]; // weak concepts from earlier units
+  achievements: AchievementId[];
+  story: StoryId[];
+  defusedTotal: number;
+  runs: number; // units finished
+  draft: { offers: RelicId[]; rerolls: number; gained: number } | null; // pending Legacy Draft
+}
+
+export const initialMeta: Meta = {
+  marks: 0, marksEarned: 0, relics: [], keptPeg: null, stake: 1, stakeUnlocked: 1, alumni: [], achievements: [], story: [], defusedTotal: 0, runs: 0, draft: null,
+};
+
+/** The run: one unit, ending at Exam Day and the Readiness Report. */
+export interface Run {
+  start: string; // YYYY-MM-DD
+  stake: number; // in force this run (1 in Calm mode)
+  auditsDone: number;
+  defused: number; // bombs defused this run
+}
+
 interface Data {
+  meta: Meta;
+  run: Run;
   unit: Unit | null;
   concepts: Concept[];
   questions: Question[];
@@ -151,6 +188,13 @@ export interface ShopState {
 }
 
 interface Actions {
+  startAudit(): void;
+  finishRun(): void;
+  draftPick(relic: RelicId, replace?: RelicId): void;
+  draftReroll(): void;
+  keepPeg(kind: SpecialKind | null): void;
+  setStake(stake: number): void;
+  newUnit(): void;
   reroll(): void;
   toggleKeno(conceptId: string): void;
   goDeeper(): void;
@@ -173,6 +217,8 @@ interface Actions {
 const today = () => new Date().toISOString().slice(0, 10);
 
 const initial: Data = {
+  meta: initialMeta,
+  run: { start: "", stake: 1, auditsDone: 0, defused: 0 },
   unit: null,
   concepts: [],
   questions: [],
@@ -212,6 +258,24 @@ export const useGame = create<Data & Actions>()(
         dropSeed: 0, chipsEarned: 0, skillChips: 0, chanceChips: 0, debtAdded: 0, bombsPlanted: [], bombsDefused: [], readinessBefore: ready(), correct: 0, mult: 1,
       });
 
+      const relic = (r: RelicId) => get().meta.relics.includes(r);
+      const stake = () => (get().settings.calm ? 1 : get().run.stake); // Stakes are off in Calm mode
+      /** Unlock a Collector story line once, and say it. */
+      const story = (id: StoryId) => {
+        if (get().meta.story.includes(id)) return;
+        set((s) => ({ meta: { ...s.meta, story: [...s.meta.story, id] }, line: STORY[id] }));
+      };
+      const achieve = () => {
+        const s = get();
+        const got = new Set(s.meta.achievements);
+        const gap = calibrationGap(s.attempts);
+        if (s.attempts.length >= 20 && gap !== null && gap <= 5) got.add("calibrated20");
+        if (s.meta.defusedTotal >= 5) got.add("defused5");
+        if (bingoLines(bingoCard(s.concepts.map((c) => c.id), hashString(s.unit?.id ?? "")), bingoMarked(s.attempts)) >= 12) got.add("fullBingo");
+        if (s.exam && s.exam.total > 0 && s.exam.correct / s.exam.total > 0.8 && stake() >= 3) got.add("stake3Exam80");
+        if (got.size > s.meta.achievements.length) set({ meta: { ...s.meta, achievements: (Object.keys(ACHIEVEMENTS) as AchievementId[]).filter((a) => got.has(a)) } });
+      };
+
       const showDraw = (session: Session) => {
         const offer = drawOffer(states(), session.recent, days(), get().attempts.length);
         // a bomb peg a ball hit arms its retest: it takes the last slot unless it was just asked
@@ -229,6 +293,27 @@ export const useGame = create<Data & Actions>()(
             const potPaid = examPotPayout(s.pot, readiness(states(), exam), earned, s.debt);
             return { exam: { ...exam, potPaid, debt: s.debt, earned }, chips: s.chips + potPaid, pot: 0, bombLedger: {}, session: null, screen: "report" };
           });
+          const pct = exam.total ? exam.correct / exam.total : 0;
+          if (pct < 0.5) story("badExam"); // kind words, not a telling-off
+          else if (pct >= 0.8) story("goodExam");
+          achieve();
+          return;
+        }
+        if (session.kind === "audit") {
+          // clearing the Collector's Audit pays a share of the Ledger Pot and moves the story on
+          const cleared = session.correct >= AUDIT_CLEAR;
+          set((s) => {
+            const paid = cleared ? Math.round(s.pot * AUDIT_POT_SHARE) : 0;
+            return {
+              chips: s.chips + paid,
+              pot: s.pot - paid,
+              run: { ...s.run, auditsDone: s.run.auditsDone + 1 },
+              session: { ...session, finished: true, potPaid: paid, skillChips: (session.skillChips ?? 0) + paid, chipsEarned: session.chipsEarned + paid },
+              screen: "summary",
+              line: cleared ? LINES.auditCleared(paid) : LINES.auditMissed,
+            };
+          });
+          if (cleared) story("auditCleared");
           return;
         }
         const drop = Math.max(0, ready() - session.readinessBefore);
@@ -255,11 +340,12 @@ export const useGame = create<Data & Actions>()(
             shop: shift ? { ...s.shop, usesThisShift: {}, rerolls: 0, shiftIncome: [...s.shop.shiftIncome, session.chipsEarned + skill] } : s.shop,
           };
         });
+        if (shift) achieve();
       };
 
       const next = (session: Session) => {
         if (session.answered >= session.total) return endSession(session);
-        if (session.kind === "exam") {
+        if (session.kind === "exam" || session.kind === "audit") {
           set({ session });
           return get().choose(session.plan[session.answered]);
         }
@@ -271,13 +357,20 @@ export const useGame = create<Data & Actions>()(
 
         setup(unit, concepts, questions) {
           const now = new Date();
+          const { meta, settings } = get();
+          // alumni concepts from earlier units ride along: their questions feed the rare Alumni peg (and Exam Day at Stake 5)
+          const alumni = meta.alumni.filter((a) => !concepts.some((c) => c.id === a.concept.id));
           set({
             ...initial,
-            settings: get().settings,
+            settings,
+            meta: { ...meta, keptPeg: null, draft: null },
+            run: { start: today(), stake: settings.calm ? 1 : meta.stake, auditsDone: 0, defused: 0 },
             unit,
             concepts,
-            questions,
+            questions: [...questions, ...alumni.flatMap((a) => a.questions)],
             conceptState: Object.fromEntries(concepts.map((c) => [c.id, newConceptState(c.id, now)])),
+            pot: meta.relics.includes("oldLedger") ? 10 : 0,
+            inventory: { ...initial.inventory, pegs: meta.keptPeg ? [{ kind: meta.keptPeg, tier: 1 }] : [] },
             screen: "intro",
             line: LINES.setup(unit.name, daysUntil(unit.examDate)),
           });
@@ -313,6 +406,9 @@ export const useGame = create<Data & Actions>()(
         startExam() {
           if (inProgress(get().session)) return get().resume();
           const plan = examConcepts(states(), EXAM_LENGTH, get().attempts.length + 7);
+          // Stake 5: Exam Day mixes in concepts from your previous unit
+          const alumni = get().meta.alumni.map((a) => a.concept.id).filter((id) => get().questions.some((q) => q.conceptId === id));
+          if (stakeHas(stake(), 5)) alumni.slice(0, 2).forEach((id, i) => (plan[plan.length - 1 - i] = id));
           set({ session: newSession("exam", plan.length, plan), line: LINES.exam, reveal: null });
           get().choose(plan[0]);
         },
@@ -320,7 +416,10 @@ export const useGame = create<Data & Actions>()(
         choose(conceptId) {
           const { questions, attempts, flagged, session } = get();
           if (!session) return;
-          const q = pickQuestion(questions, conceptId, attempts, flagged);
+          const hard = session.kind === "audit" && session.auditMod === "hard";
+          const q = hard
+            ? questions.filter((x) => x.conceptId === conceptId && !flagged.includes(x.id)).sort((a, b) => b.difficulty - a.difficulty)[0]
+            : pickQuestion(questions, conceptId, attempts, flagged);
           if (!q) {
             // every question on this concept was flagged; skip it
             return next({ ...session, total: Math.max(session.answered, session.total - 1) });
@@ -341,7 +440,7 @@ export const useGame = create<Data & Actions>()(
           };
           const base = { questionId: q.id, conceptId: q.conceptId, chosen, confidence, correct };
 
-          if (!correct && s.inventory.secondChance > 0 && !session.retrying && session.kind !== "exam") {
+          if (!correct && s.inventory.secondChance > 0 && !session.retrying && session.kind !== "exam" && session.auditMod !== "noSecondChance") {
             set({
               attempts: [...s.attempts, attempt],
               inventory: { ...s.inventory, secondChance: s.inventory.secondChance - 1 },
@@ -355,14 +454,15 @@ export const useGame = create<Data & Actions>()(
           const exam = session.kind === "exam";
           // the multiplier you're playing at scales the gain if right and the debt if wrong, so honest bets stay best
           const cards = session.hand ?? [];
-          const mult = exam ? 1 : answerMult(streakMultiplier(s.streak + 1), pegHand(cards, s.concepts.length));
+          const mult = exam ? 1 : answerMult(streakMultiplier(s.streak + 1), pegHand(cards, s.concepts.length)) * (session.auditMod === "double" ? 2 : 1);
           const index = s.concepts.findIndex((c) => c.id === q.conceptId);
-          const out = exam ? { chips: 0, debt: 0, balls: 0, plantBomb: betOutcome(confidence, correct).plantBomb } : betOutcome(confidence, correct, mult);
+          const out = exam ? { chips: 0, debt: 0, balls: 0, plantBomb: betOutcome(confidence, correct).plantBomb } : betOutcome(confidence, correct, mult, stakeTable(stake()));
           const streak = exam ? s.streak : correct ? s.streak + 1 : 0; // Exam Day doesn't touch the streak
-          const before = s.conceptState[q.conceptId];
+          const inRun = q.conceptId in s.conceptState; // alumni questions from earlier units don't move this unit's mastery
+          const before = s.conceptState[q.conceptId] ?? newConceptState(q.conceptId, now);
           const planted = s.bombLedger[q.conceptId];
-          // a bomb defuses on a different question, at least one Shift after it was planted
-          const defusable = !planted || (s.shiftsDone > planted.shift && planted.questionId !== q.id);
+          // a bomb defuses on a different question, at least one Shift after it was planted (Spaced Out: the same Shift will do)
+          const defusable = !planted || ((relic("spacedOut") ? s.shiftsDone >= planted.shift : s.shiftsDone > planted.shift) && planted.questionId !== q.id);
           const after = updateState(before, { confidence, correct, defusable }, days(), now);
           const bombDefused = before.bombActive && !after.bombActive;
           const keno = session.keno?.length && session.kind === "shift" ? kenoScore(session.keno.includes(q.conceptId), correct) : { chips: 0, debt: 0 };
@@ -374,6 +474,8 @@ export const useGame = create<Data & Actions>()(
               ? (other?.explanation ?? s.concepts.find((c) => c.id === q.conceptId)?.summary ?? "").split(/(?<=\.)\s/)[0]
               : undefined;
           const fever = bombDefused && !exam && s.concepts.every((c) => c.id === q.conceptId || !s.conceptState[c.id]?.bombActive);
+          const seal = relic("seal") && correct && confidence === "certain" && session.kind === "shift" && !session.seal;
+          const comeback = correct && s.attempts.length >= 3 && s.attempts.slice(-3).every((a) => !a.correct);
           const bombWaiting = before.bombActive && after.bombActive && correct && confidence !== "guess" && !defusable;
           const potPaid = bombDefused && planted ? defusePayout(planted.share) : 0;
           const bombLedger = { ...s.bombLedger };
@@ -391,7 +493,9 @@ export const useGame = create<Data & Actions>()(
 
           set({
             attempts: [...s.attempts, attempt],
-            conceptState: { ...s.conceptState, [q.conceptId]: after },
+            conceptState: inRun ? { ...s.conceptState, [q.conceptId]: after } : s.conceptState,
+            run: bombDefused ? { ...s.run, defused: s.run.defused + 1 } : s.run,
+            meta: bombDefused ? { ...s.meta, defusedTotal: s.meta.defusedTotal + 1 } : s.meta,
             debt: s.debt + out.debt,
             pot: s.pot - potPaid + (out.plantBomb ? POT_PER_BOMB : 0),
             chips: s.chips + potPaid,
@@ -410,6 +514,7 @@ export const useGame = create<Data & Actions>()(
               kenoChips: (session.kenoChips ?? 0) + keno.chips,
               kenoDebt: (session.kenoDebt ?? 0) + keno.debt,
               hand: correct && !exam && index >= 0 ? [...cards, { index, confidence }] : cards,
+              seal: session.seal || seal,
               fever,
               pendingChips: out.chips,
               dropSeed: s.attempts.length + 1,
@@ -423,6 +528,9 @@ export const useGame = create<Data & Actions>()(
             },
             screen: "reveal",
           });
+          if (bombDefused) story("firstDefuse");
+          if (!correct && confidence === "guess" && !exam) story("honestGuess");
+          if (comeback) story("comeback");
         },
 
         continueReveal() {
@@ -471,6 +579,8 @@ export const useGame = create<Data & Actions>()(
                 usesThisShift: isStudy(item) ? { ...s.shop.usesThisShift, [item]: (s.shop.usesThisShift[item] ?? 0) + 1 } : s.shop.usesThisShift,
               },
             });
+          if (item === "secondChance" && s.inventory.secondChance >= secondChanceMax(stake())) return;
+          if (item === "quake" && stakeHas(stake(), 7)) return;
           if (item === "secondChance") counted({ inventory: { ...s.inventory, secondChance: s.inventory.secondChance + 1 } });
           if ((SHIFT_MODS as ShopItem[]).includes(item) && !s.inventory[item as ShiftMod]) counted({ inventory: { ...s.inventory, [item]: true } });
           if (isPeg(item) && ctx.copies[item]! < MAX_COPIES) counted({ inventory: { ...s.inventory, pegs: [...s.inventory.pegs, { kind: item, tier: ctx.tier }] } });
@@ -478,6 +588,83 @@ export const useGame = create<Data & Actions>()(
             counted({ session: newSession("defuse", 1), reveal: null });
             get().choose(conceptId);
           }
+        },
+
+        startAudit() {
+          if (inProgress(get().session) || !auditDue(get())) return;
+          const s = get();
+          // bombs first, then the weakest concepts (Stake 4: bombs only)
+          const bombs = s.concepts.filter((c) => s.conceptState[c.id]?.bombActive).map((c) => c.id);
+          const weak = [...s.concepts].sort((a, b) => (s.conceptState[a.id]?.box ?? 1) - (s.conceptState[b.id]?.box ?? 1)).map((c) => c.id);
+          const pool = stakeHas(stake(), 4) && bombs.length ? bombs : [...bombs, ...weak.filter((c) => !bombs.includes(c))];
+          const plan = Array.from({ length: AUDIT_LENGTH }, (_, i) => pool[i % pool.length]);
+          const mods = Object.keys(AUDIT_MODS) as AuditMod[];
+          const auditMod = mods[hashString(`${s.unit?.id}:${s.run.auditsDone}`) % mods.length];
+          set({ session: { ...newSession("audit", plan.length, plan), auditMod }, reveal: null, line: LINES.audit(AUDIT_MODS[auditMod]) });
+          get().choose(plan[0]);
+        },
+
+        finishRun() {
+          const s = get();
+          if (!s.exam || s.meta.draft) return;
+          const grade = calibrationGrade(calibrationGap(s.attempts));
+          const gained = masteryMarks({
+            conceptsMastered: s.concepts.filter((c) => pegState(s.conceptState[c.id]) === "solid").length,
+            bombsDefused: s.run.defused,
+            calibrationGrade: grade,
+            examPercent: s.exam.total ? (100 * s.exam.correct) / s.exam.total : 0,
+          });
+          // the weakest concepts you tried come back in later units as rare Alumni pegs
+          const weak = s.concepts
+            .filter((c) => (s.conceptState[c.id]?.attempts ?? 0) > 0)
+            .sort((a, b) => (s.conceptState[a.id].box - s.conceptState[b.id].box) || (s.conceptState[b.id].confidentWrong - s.conceptState[a.id].confidentWrong))
+            .slice(0, 2)
+            .map((c) => ({ concept: c, questions: s.questions.filter((q) => q.conceptId === c.id) }));
+          const unlocked = !s.settings.calm && s.run.stake >= s.meta.stakeUnlocked && grade >= 2 ? Math.min(MAX_STAKE, s.meta.stakeUnlocked + 1) : s.meta.stakeUnlocked;
+          set({
+            meta: {
+              ...s.meta,
+              marks: s.meta.marks + gained,
+              marksEarned: s.meta.marksEarned + gained,
+              stakeUnlocked: unlocked,
+              alumni: [...weak, ...s.meta.alumni.filter((a) => !weak.some((w) => w.concept.id === a.concept.id))].slice(0, 6),
+              runs: s.meta.runs + 1,
+              draft: { offers: draftOffers(s.meta.relics, s.meta.runs * 13 + 1), rerolls: 0, gained },
+            },
+            screen: "draft",
+          });
+          achieve();
+        },
+
+        draftPick(r, replace) {
+          const { meta } = get();
+          if (!meta.draft?.offers.includes(r) || meta.marks < RELIC_COST || meta.relics.includes(r)) return;
+          const kept = replace ? meta.relics.filter((x) => x !== replace) : meta.relics;
+          if (kept.length >= MAX_RELICS) return; // carry at most 3: pick one to replace
+          set({ meta: { ...meta, marks: meta.marks - RELIC_COST, relics: [...kept, r], draft: { ...meta.draft, offers: meta.draft.offers.filter((x) => x !== r) } } });
+        },
+
+        draftReroll() {
+          const { meta } = get();
+          const d = meta.draft;
+          if (!d || meta.marks < draftRerollCost(d.rerolls)) return;
+          set({ meta: { ...meta, marks: meta.marks - draftRerollCost(d.rerolls), draft: { ...d, rerolls: d.rerolls + 1, offers: draftOffers(meta.relics, meta.runs * 13 + 1 + (d.rerolls + 1) * 101) } } });
+        },
+
+        keepPeg(kind) {
+          const { meta, inventory } = get();
+          if (kind && !inventory.pegs.some((p) => p.kind === kind)) return;
+          set({ meta: { ...meta, keptPeg: kind } });
+        },
+
+        setStake(n) {
+          const { meta, settings } = get();
+          if (settings.calm || n < 1 || n > meta.stakeUnlocked) return; // opt-in, off in Calm mode
+          set({ meta: { ...meta, stake: n } });
+        },
+
+        newUnit() {
+          get().reset();
         },
 
         toggleKeno(conceptId) {
@@ -524,8 +711,9 @@ export const useGame = create<Data & Actions>()(
           set((s) => ({ settings: { ...s.settings, ...patch } }));
         },
 
+        /** "New unit": clears the run, keeps settings and meta. */
         reset() {
-          set({ ...initial, settings: get().settings });
+          set({ ...initial, settings: get().settings, meta: { ...get().meta, draft: null } });
         },
       };
     },
@@ -544,7 +732,16 @@ export function mergeSave<T extends Data>(saved: unknown, current: T): T {
   // pegs were plain names before copies and tiers
   inventory.pegs = (inventory.pegs as (OwnedPeg | string)[]).map((k) => (typeof k === "string" ? { kind: RENAMED[k] ?? (k as SpecialKind), tier: 1 } : k));
   const shop = { ...initial.shop, ...s.shop };
-  return { ...current, ...s, inventory, shop, settings: { ...initial.settings, ...s.settings } };
+  const meta = { ...initialMeta, ...s.meta };
+  const run = { ...initial.run, ...s.run };
+  return { ...current, ...s, inventory, shop, meta, run, settings: { ...initial.settings, ...s.settings } };
+}
+
+/** A Collector's Audit is due every 3 to 4 days of a run (seeded per unit). */
+export function auditDue(s: Pick<Data, "run" | "unit" | "concepts">, now = new Date()) {
+  if (!s.run.start || s.concepts.length === 0) return false;
+  const days = Math.floor((now.getTime() - new Date(s.run.start + "T00:00:00").getTime()) / 86_400_000);
+  return days >= auditEvery(hashString(s.unit?.id ?? "")) * (s.run.auditsDone + 1);
 }
 
 /** Share of concepts that are Solid (box 4 or 5, no bomb). Unlocks stronger peg tiers. */
@@ -554,7 +751,7 @@ export function masteredShare(s: Pick<Data, "concepts" | "conceptState">) {
 }
 
 export function priceCtx(s: Pick<Data, "concepts" | "conceptState" | "inventory" | "shop">): PriceCtx {
-  const copies: Partial<Record<SpecialKind, number>> = Object.fromEntries(SPECIALS.map((k) => [k, s.inventory.pegs.filter((p) => p.kind === k).length]));
+  const copies: Partial<Record<PegKind, number>> = Object.fromEntries(SPECIALS.map((k) => [k, s.inventory.pegs.filter((p) => p.kind === k).length]));
   return { boughtThisRun: s.shop.boughtThisRun, usesThisShift: s.shop.usesThisShift, copies, tier: tierUnlocked(masteredShare(s)), index: incomeIndex(s.shop.shiftIncome) };
 }
 
