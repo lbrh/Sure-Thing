@@ -27,7 +27,7 @@ The first proposal multiplied every price by `tier(lifetime chips earned)`. That
 - **Reroll** the 3 crazy offers for 2 chips, +1 per reroll, reset each Shift.
 - Shop cards show the current price, the next price and the reason in plain words.
 
-Base prices were raised to match the new bet payouts (a Shift now pays about 50 chips): Second Chance 12, Defuser 15, Magnet 55, MEGA BUCKET 75, Earthquake 45, Prize Wheel 90, 21 Quiz 95, Pop Quiz 70, Splitter 75, Black Hole 80, Bumper 55. All in `lib/economy.ts`.
+Base prices were raised to match the new bet payouts (a Shift now pays about 50 chips): Second Chance 12, Defuser 15, Magnet 80, MEGA BUCKET 110, Earthquake 65, Prize Wheel 140, 21 Quiz 150, Pop Quiz 100, Splitter 120, Black Hole 130, Bumper 75. All in `lib/economy.ts`. The sim's mean gap between purchases is about 1.5 Shifts.
 
 ### 1.3 Income has to keep up
 
@@ -42,7 +42,7 @@ If prices grow and income does not, the shop turns into a wall. Income should ri
 
 - [x] Shop cards show the current price, the next price and the reason in plain words.
 - [x] `boughtThisRun`, copies owned, `usesThisShift`, rerolls and recent Shift income persist, with a save migration.
-- [x] `tests/tuning.test.ts` simulates 1,000 honest students at 70% accuracy over 14 days at 1 to 2 Shifts a day. At least 95% of the gaps between their first 10 purchases fall between 0.4 and 3 Shifts (the mean gap is about 1 Shift).
+- [x] `tests/tuning.test.ts` simulates 1,000 honest students at 70% accuracy over 14 days at 1 to 2 Shifts a day. At least 95% of the gaps between their first 10 purchases fall between 0.4 and 3 Shifts (the mean gap is about 1.5 Shifts).
 - [x] An overconfident policy never out-earns the honest one: lower expected Ledger net for every simulated student, and lower on average on the actual rolls. Measured in Ledger net, because debt never touches chips (see doc 11).
 - [x] Defuser and Second Chance never cost more than 3x base.
 - [x] Odds and prices stay visible before purchase. Nothing is bought with money.
@@ -80,7 +80,7 @@ The build already has Roulette and Blackjack pegs. More options, sorted by how w
 | Bingo | A 3x3 card of concepts. Turning a full row Solid pays a bonus |
 | Double or nothing | After a win, double the chips by answering one more question at Certain. A knowledge bet, never a coin flip |
 | Progressive jackpot | Built as the Ledger Pot: +5 per bomb planted, half a bomb's share paid when it is defused a Shift or more later, the rest on Exam Day by readiness. It never costs chips |
-| Poker hands (the Balatro approach) | One ball's peg hits form a "hand" (three Solid pegs in a row, all five states) with a named bonus |
+| Poker hands (the Balatro approach) | Built as Peg Hands: chips x mult, where the Shift's right answers form a Flush (x3), Straight (x4) or Full House (x5), capped at x10 with the streak |
 | VIP or loyalty tiers | Tiers by lifetime chips earned, which pairs with the price tiers in section 1.2 |
 
 ### 3.2 Pure chance (fine as spice, keep them rare)

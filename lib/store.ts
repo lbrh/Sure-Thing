@@ -8,7 +8,7 @@ import {
 } from "./engine";
 import { LINES } from "./copy";
 import {
-  betOutcome, calibrationBonus, defusePayout, examPotPayout, POT_PER_BOMB, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
+  answerMult, betOutcome, calibrationBonus, pegHand, type HandCard, defusePayout, examPotPayout, POT_PER_BOMB, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
   type PriceCtx,
 } from "./economy";
 import { FEVER_BALLS, FEVER_FLAT, type OwnedPeg, type SpecialKind } from "./board";
@@ -53,6 +53,7 @@ export interface Session {
   chanceChips: number; // from buckets, the wheel and other specials
   debtAdded: number;
   fever?: boolean; // the waiting drop is a Fever round
+  hand?: HandCard[]; // this Shift's correct answers, for Peg Hands
   feverChips?: number;
   calBonus?: number; // paid at the end of a Shift
   interest?: number;
@@ -330,7 +331,9 @@ export const useGame = create<Data & Actions>()(
 
           const exam = session.kind === "exam";
           // the multiplier you're playing at scales the gain if right and the debt if wrong, so honest bets stay best
-          const mult = exam ? 1 : streakMultiplier(s.streak + 1);
+          const cards = session.hand ?? [];
+          const mult = exam ? 1 : answerMult(streakMultiplier(s.streak + 1), pegHand(cards, s.concepts.length));
+          const index = s.concepts.findIndex((c) => c.id === q.conceptId);
           const out = exam ? { chips: 0, debt: 0, balls: 0, plantBomb: betOutcome(confidence, correct).plantBomb } : betOutcome(confidence, correct, mult);
           const streak = exam ? s.streak : correct ? s.streak + 1 : 0; // Exam Day doesn't touch the streak
           const before = s.conceptState[q.conceptId];
@@ -372,6 +375,7 @@ export const useGame = create<Data & Actions>()(
               retrying: false,
               eliminated: [],
               pendingBalls: out.balls + (fever ? FEVER_BALLS : 0),
+              hand: correct && !exam && index >= 0 ? [...cards, { index, confidence }] : cards,
               fever,
               pendingChips: out.chips,
               dropSeed: s.attempts.length + 1,

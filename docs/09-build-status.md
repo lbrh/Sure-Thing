@@ -2,7 +2,7 @@
 
 What the first commit (`7da60fc`, "init: initialize project with basic configuration and structure") actually ships, and where it differs from the plans in docs 01 to 08. When a plan doc and this doc disagree, this doc describes the code as it is.
 
-Status as of 2 October 2026. `npm test` passes: 4 files, 75 tests.
+Status as of 2 October 2026. `npm test` passes: 4 files, 79 tests.
 
 ## 1. Summary
 
@@ -67,6 +67,8 @@ You can leave a Shift mid-way (to the Shop, Report or Hub) and resume exactly wh
 | Board multiplier | Bucket payouts in a drop are multiplied as bombs fall (a bomb falls when either of its pegs is hit): x2 at 5 or fewer standing, x3 at 2 or fewer. Only on boards that start the drop with 6 or more bombs, so it is a comeback for bomb-heavy boards and never lifts luck on an ordinary board |
 | Fever | Defusing the last bomb on the board makes that answer's drop a Fever round: 3 extra balls into five Fever buckets (x2, x3, x5, x3, x2). Starts only after the defuse lands. No slow motion or zoom ever. Calm mode and reduced motion get a plain summary paying +9 (the expected value) |
 | Hit pegs | Flash, then stay dimmed for the rest of that drop |
+| Peg Hands | Each answer scores chips x mult. Mult = streak x the Shift's best Peg Hand, capped at x10, applied to gain and debt alike. Hands come only from right answers this Shift: Flush x3 (5 right in one third of the unit), Straight x4 (right on 5 concepts in a row in unit order), Full House x5 (3 right at Certain plus 2 right at Pretty sure). Hands usually land late in a Shift, adding a few chips a Shift |
+| Synergies | Splitter plus Black Hole: split copies converge on the centre and warps land mid-board. Bumper plus Magnet: the bumper fires balls at the nearest bomb peg. Prize Wheel segments +1 at a x2 streak, +2 at x3 |
 | Skill share | Shift summary meter: chips from correct answers, popup questions and calibration versus chips from buckets, the wheel and other specials. Target 80% or more |
 | Daily Shift cap | Default 6, adjustable 1 to 12 |
 
@@ -89,21 +91,21 @@ The ball scale was tuned with `tests/tuning.test.ts` so a mixed board pays 1.0 t
 - **Reroll** the 3 crazy offers for 2 chips, +1 per reroll, reset each Shift.
 - Shop cards show the current price, the next price and the reason in plain words.
 
-Base prices (tier 1, first copy):
+Base prices (tier 1, first copy). Raised twice in October 2026 by the multi-Shift sim, last when Peg Hands were added:
 
 | Item | Kind | Base | Effect |
 |---|---|---|---|
 | Second Chance | Study tool, stackable | 12 | Next wrong answer costs nothing, removes that option, retry once |
 | Defuser | Study tool | 15 | Pick a bomb and retest it now. Only between sessions |
-| Magnet Peg | Next-Shift mod | 55 | Solid pegs pull in balls within 30 px and count the hit |
-| MEGA BUCKET | Next-Shift mod | 75 | Centre bucket x10 instead of x3 |
-| Earthquake | Next-Shift mod | 45 | Gravity sways side to side |
-| Prize Wheel Peg | Permanent peg | 90 | Captures the ball and spins a 7-segment wheel: +1, +2, +2, +3, +3, +5, +8 chips (average 24/7). No zero, no stake: the ball keeps its value and drops back in. Calm mode pays +3 instantly |
-| 21 Quiz Peg | Permanent peg | 95 | Captures the ball for questions worth 2 to 10 by difficulty (value shown first). Hit or stand after each right answer. Each right answer pays 1. Hand bonus = hand / 3 rounded, doubled at exactly 21, lost on a wrong answer or over 21. The ball drops back in |
-| Pop Quiz Peg | Permanent peg | 70 | Captures the ball and asks a question from a concept you have seen. Right within 4 s pays x10, sliding to x2 at 20 s. Wrong keeps the ball at x1. No mastery change |
-| Splitter Peg | Permanent peg | 75 | Splits a ball into three. Copies keep what the original had earned. Cap 40 balls |
-| Black Hole | Permanent peg | 80 | Pulls balls within 80 px, warps them back to the top once, +1 peg value for the trip |
-| Bumper | Permanent peg | 55 | Bigger peg that fires the ball away at speed |
+| Magnet Peg | Next-Shift mod | 80 | Solid pegs pull in balls within 30 px and count the hit |
+| MEGA BUCKET | Next-Shift mod | 110 | Centre bucket x10 instead of x3 |
+| Earthquake | Next-Shift mod | 65 | Gravity sways side to side |
+| Prize Wheel Peg | Permanent peg | 140 | Captures the ball and spins a 7-segment wheel: +1, +2, +2, +3, +3, +5, +8 chips (average 24/7). No zero, no stake: the ball keeps its value and drops back in. Calm mode pays +3 instantly |
+| 21 Quiz Peg | Permanent peg | 150 | Captures the ball for questions worth 2 to 10 by difficulty (value shown first). Hit or stand after each right answer. Each right answer pays 1. Hand bonus = hand / 3 rounded, doubled at exactly 21, lost on a wrong answer or over 21. The ball drops back in |
+| Pop Quiz Peg | Permanent peg | 100 | Captures the ball and asks a question from a concept you have seen. Right within 4 s pays x10, sliding to x2 at 20 s. Wrong keeps the ball at x1. No mastery change |
+| Splitter Peg | Permanent peg | 120 | Splits a ball into three. Copies keep what the original had earned. Cap 40 balls |
+| Black Hole | Permanent peg | 130 | Pulls balls within 80 px, warps them back to the top once, +1 peg value for the trip |
+| Bumper | Permanent peg | 75 | Bigger peg that fires the ball away at speed |
 
 Shop layout: Skins (free), Study tools (always), and "Today's crazy offers": 3 items drawn by seeded shuffle from the Shift mods plus any permanent pegs you own fewer than 3 copies of. A Reroll button redraws them. Offers rotate as you answer more questions. Permanent pegs take over neutral pegs, most central first, in purchase order. Next-Shift mods clear at the end of a Shift.
 

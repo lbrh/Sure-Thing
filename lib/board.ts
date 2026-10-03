@@ -69,7 +69,7 @@ export interface OwnedPeg {
   tier: number;
 }
 
-/** Prize Wheel segments for a tier. Phase 5 adds the streak synergy on top. */
+/** Prize Wheel segments: +1 per tier above 1, plus the streak synergy (+1 at x2 streak, +2 at x3). */
 export const tierSegments = (tier = 1, extra = 0) => PRIZE_WHEEL.map((v) => v + tier - 1 + extra);
 
 /** Fixed peg grid; each concept gets 2 scoring pegs, placed by a seeded shuffle. */
@@ -154,7 +154,12 @@ export interface DropOptions {
   manual?: boolean; // player drops each ball by picking a chute; otherwise balls auto-drop near the centre
   calm?: boolean; // chance devices resolve to their expected value
   fever?: boolean; // Fever round: five Fever buckets
+  streakMult?: number; // synergy: Prize Wheel segments grow with streak tier
+  synergies?: boolean; // default on; off only to measure them
 }
+
+/** Prize Wheel synergy: +1 on every segment at a x2 streak or more, +2 at x3. */
+export const streakTier = (streakMult = 1) => (streakMult >= 3 ? 2 : streakMult >= 2 ? 1 : 0);
 
 /** Seven drop chutes across the top, one above each bucket. */
 export const CHUTES = 7;
@@ -213,6 +218,9 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
   const armed = new Set<string>(); // bomb concepts a ball hit: their retest comes up next
   const bombs = new Set(pegs.flatMap((p) => (p.conceptId && !p.special && stateOf(p) === "bomb" ? [p.conceptId] : [])));
   let boardMult = 1;
+  const kinds = new Set(pegs.map((p) => p.special));
+  const converge = opts.synergies !== false && kinds.has("splitter") && kinds.has("blackhole");
+  const bombAt = pegs.flatMap((p, i) => (p.conceptId && !p.special && stateOf(p) === "bomb" ? [i] : []));
   const events: DropEvent[] = [];
   const landed = mult.map(() => 0); // balls per bucket, for fairness checks
   let chips = 0;
@@ -264,16 +272,23 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     if (isHold(k)) {
       b.held = true;
       Matter.Composite.remove(world, b.body);
-      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total), segments: tierSegments(tier) });
+      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total), segments: tierSegments(tier, streakTier(opts.streakMult)) });
       say(i, k === "quiz" ? "POP QUIZ!" : k === "wheel" ? "PRIZE WHEEL!" : "21 QUIZ!");
     } else if (k === "splitter" && !b.child && balls.length < MAX_BALLS) {
-      for (const dx of [-1, 1]) Matter.Body.setVelocity(addBall(pegs[i].x + dx * 12, pegs[i].y - 4, true, b.total).body, { x: dx * 2.5, y: -1.5 });
-      say(i, "SPLIT!");
+      for (const dx of [-1, 1]) {
+        // synergy: with a Black Hole on the board, the copies converge on the centre instead of fanning out
+        const vx = converge ? Math.sign(W / 2 - pegs[i].x || dx) * 1.2 + dx * 0.4 : dx * 2.5;
+        Matter.Body.setVelocity(addBall(pegs[i].x + dx * 12, pegs[i].y - 4, true, b.total).body, { x: vx, y: -1.5 });
+      }
+      say(i, converge ? "SPLIT TO CENTRE!" : "SPLIT!");
     } else if (k === "bumper") {
       const { x, y } = b.body.position;
-      const d = Math.hypot(x - pegs[i].x, y - pegs[i].y) || 1;
-      Matter.Body.setVelocity(b.body, { x: ((x - pegs[i].x) / d) * 8, y: ((y - pegs[i].y) / d) * 8 });
-      say(i, "BOING!");
+      // synergy: with the Magnet on, the bumper fires the ball at the nearest bomb peg
+      const target = opts.magnet && opts.synergies !== false && bombAt.length ? bombAt.reduce((a, j) => (Math.hypot(pegs[j].x - x, pegs[j].y - y) < Math.hypot(pegs[a].x - x, pegs[a].y - y) ? j : a)) : -1;
+      const [tx, ty] = target >= 0 ? [pegs[target].x - x, pegs[target].y - y] : [x - pegs[i].x, y - pegs[i].y];
+      const d = Math.hypot(tx, ty) || 1;
+      Matter.Body.setVelocity(b.body, { x: (tx / d) * 8, y: (ty / d) * 8 });
+      say(i, target >= 0 ? "BOING! TO THE BOMB!" : "BOING!");
     }
   };
 
@@ -342,7 +357,7 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
           b.total += 1;
           say(i, "WARP!");
           events.push({ type: "peg", state: "blackhole" });
-          Matter.Body.setPosition(b.body, { x: 40 + rand() * (W - 80), y: 30 });
+          Matter.Body.setPosition(b.body, { x: converge ? W / 2 + (rand() - 0.5) * 20 : 40 + rand() * (W - 80), y: 30 });
           Matter.Body.setVelocity(b.body, { x: 0, y: 0 });
         } else Matter.Body.applyForce(b.body, b.body.position, { x: ((pegs[i].x - x) / d) * 0.00006, y: ((pegs[i].y - y) / d) * 0.00006 });
       }

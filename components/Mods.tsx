@@ -15,12 +15,12 @@ export const ITEM_INFO: Record<ShopItem, { name: string; effect: string; joke: s
   magnet: { kind: "shift", name: "Magnet Peg", effect: "Next Shift: solid pegs pull in balls that pass close by.", joke: "Knowledge is attractive. Literally, this once." },
   mega: { kind: "shift", name: "MEGA BUCKET", effect: "Next Shift: the centre bucket pays x10 instead of x3.", joke: "The middle path, but make it absurd.", odds: "Centre bucket x10. Others unchanged." },
   quake: { kind: "shift", name: "Earthquake", effect: "Next Shift: gravity sways side to side. Total chaos, same odds for everyone.", joke: "The board is having a day." },
-  wheel: { kind: "peg", name: "Prize Wheel Peg", effect: "Catches the ball and spins the PRIZE WHEEL for bonus chips. The ball keeps its value and drops back in. Nothing is at stake.", joke: "Big money! No money. Just chips.", odds: wheelOdds(PRIZE_WHEEL) },
+  wheel: { kind: "peg", name: "Prize Wheel Peg", effect: "Catches the ball and spins the PRIZE WHEEL for bonus chips. The ball keeps its value and drops back in. Nothing is at stake. Segments grow +1 per tier, and +1 at a x2 streak (+2 at x3).", joke: "Big money! No money. Just chips.", odds: wheelOdds(PRIZE_WHEEL) },
   quiz21: { kind: "peg", name: "21 Quiz Peg", effect: "Catches the ball for a quick quiz. Each question is worth 2 to 10 by difficulty, shown first. After each right answer, hit for another or stand. Go over 21 or miss one and only the hand bonus is lost. Every right answer still pays 1.", joke: "Pontoon, but it's a pop quiz.", odds: "Bonus = hand / 3, rounded. Exactly 21 doubles it. No chance involved once you see the next question's value." },
   quiz: { kind: "peg", name: "Pop Quiz Peg", effect: "Catches the ball and fires a question from your unit. The faster you get it right, the bigger the multiplier.", joke: "Even the chaos makes you revise. Quickly.", odds: `Right within ${QUIZ_FAST_MS / 1000}s x10, sliding to x2 by ${QUIZ_SLOW_MS / 1000}s · Wrong keeps the ball at x1. No mastery change.` },
-  splitter: { kind: "peg", name: "Splitter Peg", effect: "Splits a ball into three. The copies keep what the original had earned so far.", joke: "Mitosis, but for points." },
+  splitter: { kind: "peg", name: "Splitter Peg", effect: "Splits a ball into three. The copies keep what the original had earned so far. With a Black Hole installed, the copies converge on the centre and warps land mid-board.", joke: "Mitosis, but for points." },
   blackhole: { kind: "peg", name: "Black Hole", effect: "Sucks nearby balls in and warps them back to the top for another run, +1 peg value for the trip.", joke: "Spaghettification sold separately." },
-  bumper: { kind: "peg", name: "Bumper", effect: "A big pinball bumper. BOING.", joke: "Some pegs just want to be loud." },
+  bumper: { kind: "peg", name: "Bumper", effect: "A big pinball bumper. BOING. With the Magnet on, it fires balls at the nearest bomb peg.", joke: "Some pegs just want to be loud." },
 };
 
 /* ---------- popups for captured balls ---------- */

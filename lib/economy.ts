@@ -85,8 +85,8 @@ export type Item = StudyTool | Boost | PegKind;
 
 /** Base prices, tuned with the multi-Shift sim in tests/tuning.test.ts against the income a Shift now pays. */
 export const STUDY_BASE: Record<StudyTool, number> = { secondChance: 12, defuser: 15 };
-export const BOOST_BASE: Record<Boost, number> = { magnet: 55, mega: 75, quake: 45 };
-export const PEG_BASE: Record<PegKind, number> = { wheel: 90, quiz21: 95, quiz: 70, splitter: 75, blackhole: 80, bumper: 55 };
+export const BOOST_BASE: Record<Boost, number> = { magnet: 80, mega: 110, quake: 65 };
+export const PEG_BASE: Record<PegKind, number> = { wheel: 140, quiz21: 150, quiz: 100, splitter: 120, blackhole: 130, bumper: 75 };
 /** Tier t's base price is the tier 1 base times this. Each tier is a stronger peg. */
 export const TIER_MULT = [1, 1.6, 2.4, 3.5];
 export const MAX_COPIES = 3;
@@ -168,3 +168,38 @@ export function examPotPayout(pot: number, readiness: number, earned: number, de
   const honesty = earned + debt > 0 ? earned / (earned + debt) : 1;
   return Math.max(0, Math.round(gross * honesty));
 }
+
+/* ---------- Peg Hands: chips x mult ---------- */
+
+export type HandName = "Flush" | "Straight" | "Full House";
+/**
+ * Built only from correct answers in the current Shift. Checked with tests/tuning.test.ts: hands usually land late
+ * in a Shift, so they add a few chips a Shift and an overclaimer still nets about half what an honest player does.
+ */
+export const HANDS: { name: HandName; mult: number; rule: string }[] = [
+  { name: "Full House", mult: 5, rule: "3 right at Certain plus 2 right at Pretty sure" },
+  { name: "Straight", mult: 4, rule: "right answers on 5 concepts in a row in unit order" },
+  { name: "Flush", mult: 3, rule: "5 right in one section of the unit" },
+];
+export const SECTIONS = 3; // a unit's concepts split into 3 sections, in unit order
+
+export interface HandCard {
+  index: number; // concept position in the unit
+  confidence: Confidence;
+}
+
+/** Best Peg Hand completed by this Shift's correct answers so far, or null. */
+export function pegHand(cards: HandCard[], conceptCount: number): (typeof HANDS)[number] | null {
+  const n = (c: Confidence) => cards.filter((x) => x.confidence === c).length;
+  const fullHouse = n("certain") >= 3 && n("pretty") >= 2;
+  const idx = new Set(cards.map((c) => c.index));
+  const straight = [...idx].some((i) => [1, 2, 3, 4].every((k) => idx.has(i + k)));
+  const size = Math.ceil(conceptCount / SECTIONS);
+  const perSection = new Map<number, number>();
+  for (const c of cards) perSection.set(Math.floor(c.index / size), (perSection.get(Math.floor(c.index / size)) ?? 0) + 1);
+  const flush = [...perSection.values()].some((v) => v >= 5);
+  return HANDS.find((h) => (h.name === "Full House" ? fullHouse : h.name === "Straight" ? straight : flush)) ?? null;
+}
+
+/** The multiplier an answer plays at: streak times Peg Hand, capped at x10. Scales gains and debts alike. */
+export const answerMult = (streakMult: number, hand: { mult: number } | null) => Math.min(MULT_CAP, streakMult * (hand?.mult ?? 1));

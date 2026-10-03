@@ -187,9 +187,9 @@ describe("shop price formulas", () => {
   it("study tools: base * (1 + 0.1 * usesThisShift), never above 3x base", () => {
     expect([0, 1, 5, 19, 20, 50].map((u) => studyPrice(10, u))).toEqual([10, 11, 15, 29, 30, 30]);
   });
-  it("boosts: ceil(base * 1.12 ^ boughtThisRun)", () => expect([0, 1, 2].map((n) => boostPrice(45, n))).toEqual([45, 51, 57]));
+  it("boosts: ceil(base * 1.12 ^ boughtThisRun)", () => expect([0, 1, 2].map((n) => boostPrice(65, n))).toEqual([65, 73, 82]));
   it("pegs: ceil(baseTier * 1.15 ^ copies), stronger tiers cost more", () => {
-    expect([0, 1, 2].map((n) => pegPrice("bumper", 1, n))).toEqual([55, 64, 73]);
+    expect([0, 1, 2].map((n) => pegPrice("bumper", 1, n))).toEqual([75, 87, 100]);
     expect(pegPrice("bumper", 2, 0)).toBeGreaterThan(pegPrice("bumper", 1, 0));
   });
   it("tiers unlock at 25, 50 and 75% mastered", () => expect([0, 0.25, 0.5, 0.74, 0.75, 1].map(tierUnlocked)).toEqual([1, 2, 3, 3, 4, 4]));

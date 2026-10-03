@@ -24,7 +24,7 @@ const BUCKET_COLOR = (m: number) => (m >= 10 ? null : m >= 3 ? "#ff0000" : m >= 
 export interface BoardProps {
   pegs: PegSpec[];
   states: Record<string, PegState>;
-  drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean; fever?: boolean } | null;
+  drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean; fever?: boolean; streakMult?: number } | null;
   showMega?: boolean; // static preview of next Shift's mega bucket
   onDone?: (chips: number, skill: number, armed: string[]) => void;
   /** Captured ball: show a popup, then call release(result). Leave unset to auto-play. Calm mode pays the wheel's expected value without asking. */
@@ -53,7 +53,7 @@ export default function Board(props: BoardProps) {
 
   const statesKey = JSON.stringify(states);
   const frozenStates = useMemo(() => states, [statesKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const dropKey = drop ? `${drop.balls}:${drop.seed}:${drop.magnet}:${drop.mega}:${drop.quake}:${drop.fever}` : "";
+  const dropKey = drop ? `${drop.balls}:${drop.seed}:${drop.magnet}:${drop.mega}:${drop.quake}:${drop.fever}:${drop.streakMult}` : "";
 
   useEffect(() => {
     const el = canvas.current;

@@ -262,7 +262,7 @@ describe("shop pegs and old saves", () => {
       g().buy("bumper");
       prices.push(before - g().chips);
     }
-    expect(prices.slice(0, 3)).toEqual([55, 64, 73]); // ceil(55 * 1.15 ^ copies)
+    expect(prices.slice(0, 3)).toEqual([75, 87, 100]); // ceil(55 * 1.15 ^ copies)
     expect(prices[3]).toBe(0); // a 4th copy isn't for sale
     expect(g().inventory.pegs).toEqual([1, 1, 1].map((tier) => ({ kind: "bumper", tier })));
   });

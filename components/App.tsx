@@ -11,7 +11,7 @@ import Seal, { sealDo } from "./Seal";
 import { inProgress, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
 import { FEVER_BALLS, FEVER_FLAT, FEVER_MULTIPLIERS, layoutPegs, placeSpecials, type Hold, type HoldResult, type PegSpec } from "@/lib/board";
 import { badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
-import { breakEven, DEBT, GAIN, skillShare, SKILL_TARGET } from "@/lib/economy";
+import { answerMult, breakEven, DEBT, GAIN, HANDS, MULT_CAP, pegHand, skillShare, SKILL_TARGET } from "@/lib/economy";
 import { CONF_LABEL, LINES, terms } from "@/lib/copy";
 import { sfx } from "@/lib/sound";
 import { loadUnit, SEEDED } from "@/lib/loadUnit";
@@ -546,7 +546,7 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
           </div>
           {exam && <p className="small">Exam Day: no {t.chips} at stake. Your {t.bet}s feed the readiness report.</p>}
           {s.retrying && <p className="small">Second Chance: one option is out. Try again.</p>}
-          {!exam && g.streak >= 1 && <p className="small mono">STREAK {g.streak}: THIS ANSWER PLAYS AT x{streakMultiplier(g.streak + 1)} (GAIN AND DEBT ALIKE)</p>}
+          {!exam && <HandLine />}
           <button className="btn success big" disabled={!chosen || !conf} onClick={() => chosen && conf && g.answer(chosen, conf)}>
             Lock it in
           </button>
@@ -559,6 +559,32 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
         </Window>
       </section>
     </div>
+  );
+}
+
+/** This Shift's Peg Hand and the multiplier the next answer plays at. */
+function HandLine() {
+  const g = useGame();
+  const s = g.session!;
+  const hand = pegHand(s.hand ?? [], g.concepts.length);
+  const m = answerMult(streakMultiplier(g.streak + 1), hand);
+  return (
+    <details className="small">
+      <summary className="mono">
+        {hand ? `PEG HAND: ${hand.name.toUpperCase()} x${hand.mult} · ` : ""}THIS ANSWER PLAYS AT x{m} (GAIN AND DEBT ALIKE)
+      </summary>
+      <p>
+        Chips x mult. Streak x{streakMultiplier(g.streak + 1)}
+        {hand ? ` times ${hand.name} x${hand.mult}` : ""}, capped at x{MULT_CAP}. Hands are built only from right answers this Shift:
+      </p>
+      <ul>
+        {HANDS.map((h) => (
+          <li key={h.name}>
+            {h.name} x{h.mult}: {h.rule}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -711,7 +737,8 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips:
   const feverFlat = Boolean(s.fever) && (g.settings.calm || reduced);
   const fever = Boolean(s.fever) && !feverFlat;
   const balls = feverFlat ? s.pendingBalls - FEVER_BALLS : s.pendingBalls;
-  const drop = useMemo(() => ({ balls, seed: s.dropSeed, magnet, mega: megaMod, quake, fever }), [balls, s.dropSeed, magnet, megaMod, quake, fever]);
+  const streakMult = streakMultiplier(g.streak);
+  const drop = useMemo(() => ({ balls, seed: s.dropSeed, magnet, mega: megaMod, quake, fever, streakMult }), [balls, s.dropSeed, magnet, megaMod, quake, fever, streakMult]);
 
   // sized to the payout: a small bonus gets a small cheer, only the biggest shakes
   const onCheer = (level: 1 | 2 | 3, value: number) => {
