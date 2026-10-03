@@ -377,22 +377,19 @@ Two sample questions to show the target quality:
 2. Which clause filters groups after aggregation?
    Correct: HAVING. Tempting wrong: WHERE (misconception: WHERE can filter on aggregate results).
 
-## 14. Progression data (planned)
+## 14. Progression data (as built)
 
-The Cookie Clicker style price curve (`10-progression-and-inspiration.md`, section 1) needs two new persisted fields in `lib/store.ts`, plus a save migration that defaults both for older saves:
+Pricing lives in `lib/economy.ts` (`priceOf(item, ctx)`), pure so the tuning sim tests it. The store persists a `shop` slice and peg copies with tiers; `mergeSave()` migrates older `sure-thing-v1` saves:
 
 ```ts
-chipsEarnedTotal: number;                        // lifetime chips from the board, never reduced
-bought: Partial<Record<ShopItem, number>>;       // purchases per item
-
-export function price(item: ShopItem, bought: number, earned: number): number {
-  const tier = 1 + 0.25 * Math.floor(earned / 50);
-  const raw = Math.ceil(PRICES[item] * 1.15 ** bought * tier);
-  return item === "secondChance" || item === "defuser" ? Math.min(raw, PRICES[item] * 3) : raw;
-}
+shop: {
+  boughtThisRun: Partial<Record<ShopItem, number>>;
+  usesThisShift: Partial<Record<ShopItem, number>>;  // study tools, reset each Shift
+  rerolls: number;                                    // this Shift
+  shiftIncome: number[];                              // per finished Shift, for the income index
+};
+inventory.pegs: { kind: SpecialKind; tier: number }[]; // up to 3 copies per kind
 ```
-
-Keep `price()` pure (in `lib/engine.ts` or a new `lib/economy.ts`) so the tuning sim can test it.
 
 ## 15. Environment variables
 

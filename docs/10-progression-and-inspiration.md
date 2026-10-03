@@ -15,21 +15,19 @@ Goals:
 3. Income grows with real learning (more Solid pegs, longer streaks, fewer bombs), so the fastest way up the curve is to know more and bet honestly.
 4. The price curve never gates learning. Every retest stays free through the Draw.
 
-### 1.2 Proposed rules (starting values, tune in playtest)
+### 1.2 Rules as built (October 2026, replaces the first proposal)
 
-Track lifetime chips earned from the board (`chipsEarnedTotal`, never reduced by spending or penalties).
+The first proposal multiplied every price by `tier(lifetime chips earned)`. That makes prices rise faster than income, so faster learners pay more. It was dropped. Prices now come from what you bought, not how much you earned (doc 11 has the reasoning):
 
-```
-price(item) = ceil( base(item) * 1.15 ^ bought(item) * tier(chipsEarnedTotal) )
+- **Study tools** (Second Chance, Defuser): `base * (1 + 0.1 * usesThisShift)`, back to base every Shift, never above 3x base. Retests stay free through the Draw.
+- **Consumable boosts** (Magnet, MEGA BUCKET, Earthquake): `ceil(base * 1.12 ^ boughtThisRun)`.
+- **Permanent pegs**: `ceil(baseTier * 1.15 ^ copies)`, up to 3 copies of each. Tiers 2, 3 and 4 unlock at 25%, 50% and 75% of concepts Solid. Tier t costs the tier 1 base times 1, 1.6, 2.4 or 3.5, and pays +(t - 1) chips every time it fires (+(t - 1) on every Prize Wheel segment).
+- **Income index** (applied to boosts and pegs only): `min(2, sqrt(avgIncomeLast3Shifts / firstShiftIncome))`. It uses income, never lifetime totals, and it falls when income falls.
+- **Interest**: at the end of a Shift, +1 chip per 10 held, capped at +3.
+- **Reroll** the 3 crazy offers for 2 chips, +1 per reroll, reset each Shift.
+- Shop cards show the current price, the next price and the reason in plain words.
 
-tier(e) = 1 + 0.25 * floor(e / 50)     // +25% on every price for each 50 chips earned, all time
-```
-
-- `base(item)` is today's flat price (doc 09, section 4).
-- `bought(item)` counts purchases of that item, the Cookie Clicker part (each building costs 15% more than the last).
-- `tier()` is the "as you earn more, things cost more" part. It rises in visible steps so the player can see it coming.
-- **Study tools are capped.** Second Chance and Defuser use the same formula but never go above 3x their base price, because they are learning tools. Every other item has no cap.
-- Permanent pegs can only be bought once each today. To give the curve somewhere to go, allow a second and third copy of each peg (each placed on the next free neutral peg) and add peg upgrade levels (a Roulette Peg level 2 with a better wheel, for example).
+Base prices were raised to match the new bet payouts (a Shift now pays about 50 chips): Second Chance 12, Defuser 15, Magnet 80, MEGA BUCKET 110, Earthquake 65, Prize Wheel 140, 21 Quiz 150, Pop Quiz 100, Splitter 120, Black Hole 130, Bumper 75. All in `lib/economy.ts`. The sim's mean gap between purchases is about 1.5 Shifts.
 
 ### 1.3 Income has to keep up
 
@@ -42,18 +40,18 @@ If prices grow and income does not, the shop turns into a wall. Income should ri
 
 ### 1.4 Acceptance criteria
 
-- [ ] Shop cards show the current price, the next price and the reason it rose ("Price rises 15% each time you buy it, and 25% for every 50 chips you have earned").
-- [ ] `chipsEarnedTotal` and per-item purchase counts persist, with a save migration (default to 0 for older saves).
-- [ ] Extend `tests/tuning.test.ts` with a multi-Shift player sim (honest bettor at 70% accuracy) that checks the gap between purchases stays between about 1 and 3 Shifts for the first 10 Shifts.
-- [ ] A player who bets honestly reaches the next purchase faster than one who always bets Certain at the same accuracy.
-- [ ] Defuser and Second Chance never cost more than 3x base.
-- [ ] Odds and prices stay visible before purchase. Nothing is bought with money (guardrails 1 and 2 still hold).
+- [x] Shop cards show the current price, the next price and the reason in plain words.
+- [x] `boughtThisRun`, copies owned, `usesThisShift`, rerolls and recent Shift income persist, with a save migration.
+- [x] `tests/tuning.test.ts` simulates 1,000 honest students at 70% accuracy over 14 days at 1 to 2 Shifts a day. At least 95% of the gaps between their first 10 purchases fall between 0.4 and 3 Shifts (the mean gap is about 1.5 Shifts).
+- [x] An overconfident policy never out-earns the honest one: lower expected Ledger net for every simulated student, and lower on average on the actual rolls. Measured in Ledger net, because debt never touches chips (see doc 11).
+- [x] Defuser and Second Chance never cost more than 3x base.
+- [x] Odds and prices stay visible before purchase. Nothing is bought with money.
 
-### 1.5 Further ideas from idle games (optional)
+### 1.5 Prestige and achievements (built October 2026)
 
-- **Prestige.** Passing Exam Day or starting a new unit converts lifetime chips into a small permanent perk (a free Second Chance per Shift, for example), the way Cookie Clicker's heavenly chips do.
-- **Milestones.** Unlocks at lifetime chip thresholds (new skins, new peg types, new Collector lines).
-- **Achievements** tied to learning, not grinding: "Defused 5 bombs", "Calibrated within 5 points over 20 answers".
+- **Prestige** is the Legacy Draft. It converts learning, never chips, into Mastery Marks: `marks = floor(2 * sqrt(3 * conceptsMastered + 2 * bombsDefused + 10 * calibrationGrade + examPercent / 5))`. Marks buy relics that carry between units. The square root keeps later units from snowballing. Full rules in doc 09, section 4a.
+- **Milestones** by lifetime chips were dropped: they reward grinding. Stakes unlock by finishing a unit well calibrated instead.
+- **Achievements** are learning only: calibrated within 5 points over 20 answers, defused 5 bombs, a full Bingo card, Exam Day above 80% at Stake 3.
 
 ## 2. Ideas from Peggle
 
@@ -61,14 +59,14 @@ Peggle is the closest relative of our board: aim, shoot, bounce, clear target pe
 
 | Peggle mechanic | Sure Thing version | Guardrail fit |
 |---|---|---|
-| Orange pegs you must clear | Bomb and Shaky pegs light up when hit. Light all bombs in one Shift for a bonus. Mastery stays tied to answers, the board only pays chips | Good |
-| Multiplier rises as targets clear | The bucket multiplier steps up as more of your concepts reach Solid | Good, rewards learning |
+| Orange pegs you must clear | Built: a ball hitting a bomb peg arms its retest in the next Draw. Mastery stays tied to answers, the board only pays chips | Good |
+| Multiplier rises as targets clear | Built: x2 at 5 or fewer bombs standing in a drop, x3 at 2 or fewer, only on boards with 6 or more bombs | Good, a comeback that does not lift luck on ordinary boards |
 | Free Ball bucket that slides along the bottom | A moving bucket that returns the ball for another drop | Good |
 | Purple peg that moves each shot | A "hot concept" peg that changes each drop and pays double, ideally on a due concept | Good |
 | Green power pegs and Master powers (Super Guide, Spooky Ball, Multiball, Flippers) | Power pegs that grant one-drop powers. Super Guide (a trajectory preview) is a natural reward for mastery | Good |
 | Style shots (Long Shot, Off the Wall, Bank Shot) | Small chip bonuses for skilful aiming with the chutes, or a free-angle launcher replacing the 7 chutes | Good |
-| Extreme Fever (slow motion and zoom on the last orange peg, then bonus buckets) | A finale when the last bomb on the board is defused | Careful: slow motion as the ball nears a target is a near-miss effect (guardrail 5). Trigger it only after the hit lands, never before |
-| Pegs vanish after a shot | Hit pegs flash and dim for the rest of that drop | Good |
+| Extreme Fever (slow motion and zoom on the last orange peg, then bonus buckets) | Built: defusing the last bomb turns that drop into a Fever round with five Fever buckets. No slow motion or zoom at all. Calm mode and reduced motion get a plain summary | Good |
+| Pegs vanish after a shot | Built: hit pegs flash and dim for the rest of that drop | Good |
 
 ## 3. Ideas from casino and gambling games
 
@@ -78,18 +76,18 @@ The build already has Roulette and Blackjack pegs. More options, sorted by how w
 
 | Source | Idea |
 |---|---|
-| Keno | Before a Shift, pick which concepts you expect to get right. Pays for accurate predictions, which is a calibration bet |
-| Bingo | A 3x3 card of concepts. Turning a full row Solid pays a bonus |
-| Double or nothing | After a win, double the chips by answering one more question at Certain. A knowledge bet, never a coin flip |
-| Progressive jackpot | A "ledger pot" that grows a little with every chip lost to a penalty, paid out when you defuse a bomb |
-| Poker hands (the Balatro approach) | One ball's peg hits form a "hand" (three Solid pegs in a row, all five states) with a named bonus |
+| Keno | Built as Calibration Keno: mark concepts before a Shift. +2 marked and right, +2 debt marked and wrong, +1 unmarked and wrong |
+| Bingo | Built as Concept Bingo: a 5x5 card, squares mark after 2 spaced right answers, lines pay +5 |
+| Double or nothing | Built as Go Deeper, without the "double or nothing": after a right answer, one harder question for +3. Nothing is put at stake and it is never offered after a loss |
+| Progressive jackpot | Built as the Ledger Pot: +5 per bomb planted, half a bomb's share paid when it is defused a Shift or more later, the rest on Exam Day by readiness. It never costs chips |
+| Poker hands (the Balatro approach) | Built as Peg Hands: chips x mult, where the Shift's right answers form a Flush (x3), Straight (x4) or Full House (x5), capped at x10 with the streak |
 | VIP or loyalty tiers | Tiers by lifetime chips earned, which pairs with the price tiers in section 1.2 |
 
 ### 3.2 Pure chance (fine as spice, keep them rare)
 
 | Source | Idea |
 |---|---|
-| Scratch cards | A scratch card at the end of a Shift, with odds shown |
+| Scratch cards | Built as the Shift Report Card: a scratch-style reveal of a summary that is already decided. No chance involved |
 | Slot style bonus rounds and free spins | One ball hitting 3 Solid pegs triggers a short bonus drop |
 | Wheel spins | Already built as the Roulette Peg |
 | Craps, baccarat, other card games | More capture-peg popups like Blackjack |
@@ -107,8 +105,10 @@ These are well-documented ways gambling products keep people playing against the
 - **Insurance or side bets that make Certain safe.** These break the honest-confidence maths in doc 02, section 4.1.
 - **Anything bought with money**, including chip packs and paid spins. Breaks guardrails 1 and 2.
 
-## 4. Before building any of this
+- **Never build:** slots, baccarat, craps, sic bo, lotteries, claw machines, coin pushers, parlays, loot boxes, bonus buys, near-miss animations, chip stakes on random events, double or nothing after a loss, login streaks, timed offers, autoplay or turbo drops, raw-chip leaderboards, late-night notifications.
 
-1. Settle the open casino imagery decision in doc 08, section 1. Sections 2 and 3 move the game further towards a casino look.
-2. Every new chance mechanic shows its odds before the player commits, and is skipped (same result, no animation) in Calm mode and with reduced motion, like the existing capture pegs.
-3. Add each new payout to the tuning sim before it ships.
+## 4. Rules for anything new
+
+1. The casino imagery decision is made: game show, not casino (doc 08, section 1).
+2. Every chance mechanic shows its odds before the player commits, never takes a stake, and pays its expected value instantly in Calm mode.
+3. Add each new payout to the tuning sim before it ships, and keep an honest player's skill share at 80% or more.

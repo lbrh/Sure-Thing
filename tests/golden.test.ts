@@ -5,7 +5,7 @@ vi.hoisted(() => {
   const m = new Map<string, string>();
   globalThis.localStorage = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) } as Storage;
 });
-import { useGame, SHIFT_LENGTH } from "@/lib/store";
+import { auditDue, initialMeta, mergeSave, useGame, SHIFT_LENGTH } from "@/lib/store";
 import { createDrop, layoutPegs } from "@/lib/board";
 import { hashString, pegState, readiness, type OptionId } from "@/lib/engine";
 import { loadUnit } from "@/lib/loadUnit";
@@ -59,7 +59,8 @@ describe("golden path", () => {
     expect(g().session!.questionId).toBe("nulls-1");
     g().answer("A", "certain");
     expect(g().reveal!.bombPlanted).toBe(true);
-    expect(g().chips).toBe(1);
+    expect(g().chips).toBe(5); // debt never comes out of chips
+    expect(g().debt).toBe(12);
     expect(g().conceptState.nulls.bombActive).toBe(true);
     drop();
     const asked: string[] = ["nulls"];
@@ -72,44 +73,69 @@ describe("golden path", () => {
       answer("pretty");
       drop();
     }
-    expect(asked.slice(3)).toContain("nulls"); // retested in the same Shift
-    expect(g().conceptState.nulls.bombActive).toBe(false); // and defused with a different question
-    expect(g().session!.bombsDefused).toContain("nulls");
+    expect(asked.slice(3)).toContain("nulls"); // retested in the same Shift...
+    expect(g().conceptState.nulls.bombActive).toBe(true); // ...but a bomb needs a Shift's wait before it defuses
+    expect(g().pot).toBe(5);
     expect(g().screen).toBe("summary");
     expect(g().shiftsDone).toBe(1);
-    expect(g().chips).toBeGreaterThan(1);
-    expect(g().chips).toBeGreaterThanOrEqual(10); // enough for a Defuser, as in the demo script
+    expect(g().chips).toBeGreaterThanOrEqual(15); // enough for a Defuser, as in the demo script
+    expect(g().debt).toBe(12); // defusing never refunds the debt
+    expect(g().session!.skillChips / (g().session!.skillChips + g().session!.chanceChips)).toBeGreaterThanOrEqual(0.8);
 
     // Shop: earn enough, then buy a Second Chance; chips never go negative
-    useGame.setState({ chips: 20 });
+    useGame.setState({ chips: 30 });
     g().buy("secondChance");
     expect(g().inventory.secondChance).toBe(1);
-    expect(g().chips).toBe(12);
+    expect(g().chips).toBe(18);
+    expect(g().shop.usesThisShift.secondChance).toBe(1);
+    g().buy("secondChance"); // study tools: +10% per use this Shift
+    expect(g().chips).toBe(18 - 14);
+    useGame.setState({ inventory: { ...g().inventory, secondChance: 1 } });
+    g().reroll();
+    expect(g().chips).toBe(2);
+    expect(g().shop.rerolls).toBe(1);
 
     // Shift 2: Second Chance absorbs the first miss (no penalty, no bomb, retry)
     g().startShift();
-    g().choose(g().session!.offer[0]);
+    expect(g().session!.offer[0]).toBe("nulls"); // the waiting bomb leads the Draw
+    g().choose("nulls");
     const q = g().questions.find((x) => x.id === g().session!.questionId)!;
+    expect(q.id).not.toBe("nulls-1");
     const chipsBefore = g().chips;
+    const debtBefore = g().debt;
     g().answer(wrongOf(q.correct), "certain");
     expect(g().reveal!.secondChance).toBe(true);
     expect(g().chips).toBe(chipsBefore);
-    expect(g().conceptState[q.conceptId].bombActive).toBe(false);
+    expect(g().debt).toBe(debtBefore);
+    expect(g().pot).toBe(5); // no new bomb planted
     g().continueReveal();
     expect(g().screen).toBe("question");
+    const chipsPre = g().chips;
     answer("certain");
-    drop();
+    expect(g().reveal!.bombDefused).toBe(true);
+    expect(g().reveal!.potPaid).toBe(3); // half of the bomb's 5, rounded
+    expect(g().chips).toBe(chipsPre + 3);
+    expect(g().pot).toBe(2);
+    expect(g().debt).toBe(12); // defusing never refunds debt
+    expect(g().reveal!.fever).toBe(true); // that was the last bomb on the board: Fever, after the defuse lands
+    expect(g().session!.pendingBalls).toBe(1 + 3);
+    const calmChips = g().chips + g().session!.pendingChips;
+    g().finishDrop(0, 0, [], true); // Calm mode or reduced motion: plain summary at the expected value
+    expect(g().chips).toBe(calmChips + 9);
     for (let i = 1; i < SHIFT_LENGTH; i++) {
       g().choose(g().session!.offer[0]);
       answer(i % 2 ? "certain" : "guess", i !== 3);
       drop();
     }
     expect(g().shiftsDone).toBe(2);
+    expect(g().shop.usesThisShift).toEqual({}); // study tool prices reset each Shift
+    expect(g().shop.rerolls).toBe(0);
+    expect(g().shop.shiftIncome).toHaveLength(2);
 
     // Defuser: plant a bomb in Shift 3, then buy a retest from the shop
     playShift(true);
     const bomb = g().concepts.find((c) => g().conceptState[c.id].bombActive)!;
-    useGame.setState({ chips: 10 });
+    useGame.setState({ chips: 15 });
     g().buy("defuser", bomb.id);
     expect(g().session!.kind).toBe("defuse");
     expect(g().chips).toBe(0);
@@ -126,14 +152,79 @@ describe("golden path", () => {
     }
     expect(g().screen).toBe("report");
     expect(g().exam).toMatchObject({ total: 10, correct: 6 });
-    expect(g().chips).toBe(chips);
+    expect(g().pot).toBe(0); // Exam Day pays out the rest, never costs anything
+    expect(g().chips).toBe(chips + g().exam!.potPaid!);
+    expect(g().exam!.potPaid!).toBeGreaterThanOrEqual(0);
     const states = g().concepts.map((c) => g().conceptState[c.id]);
     expect(readiness(states, g().exam)).toBeGreaterThan(0);
+
+    // Report, then the Legacy Draft: Marks come from learning, never chips
+    g().finishRun();
+    expect(g().screen).toBe("draft");
+    const marks = g().meta.marks;
+    expect(marks).toBe(g().meta.draft!.gained);
+    expect(marks).toBeGreaterThan(0);
+    useGame.setState({ meta: { ...g().meta, marks: 20 } });
+    const offer = g().meta.draft!.offers[0];
+    g().draftReroll(); // 2 Marks, then 3
+    expect(g().meta.marks).toBe(18);
+    g().draftReroll();
+    expect(g().meta.marks).toBe(15);
+    useGame.setState({ meta: { ...g().meta, draft: { ...g().meta.draft!, offers: ["oldLedger", "spacedOut", "seal"] } } });
+    g().draftPick("oldLedger");
+    g().draftPick("spacedOut");
+    g().draftPick("seal");
+    expect(g().meta.relics).toEqual(["oldLedger", "spacedOut", "seal"]);
+    expect(g().meta.marks).toBe(6);
+    useGame.setState({ meta: { ...g().meta, draft: { ...g().meta.draft!, offers: ["cartographer"] } } });
+    g().draftPick("cartographer"); // carry at most 3
+    expect(g().meta.relics).toHaveLength(3);
+    g().draftPick("cartographer", "seal");
+    expect(g().meta.relics).toEqual(["oldLedger", "spacedOut", "cartographer"]);
+    expect(offer).toBeTruthy();
+    useGame.setState({ inventory: { ...g().inventory, pegs: [{ kind: "wheel", tier: 3 }, { kind: "wheel", tier: 3 }] } });
+    g().keepPeg("wheel");
+    g().setStake(5); // not unlocked yet
+    expect(g().meta.stake).toBe(1);
+    const alumni = g().meta.alumni.map((a) => a.concept.id);
+    expect(alumni.length).toBeGreaterThan(0);
+
+    // Second run: meta kept, run cleared
+    g().newUnit();
+    expect(g().screen).toBe("setup");
+    const soil = await loadUnit("Soil Chem", "2026-10-11", () => {});
+    g().setup(soil.unit, soil.concepts, soil.questions);
+    expect(g().meta.relics).toEqual(["oldLedger", "spacedOut", "cartographer"]);
+    expect(g().meta.runs).toBe(1);
+    expect(g().chips).toBe(5);
+    expect(g().debt).toBe(0);
+    expect(g().attempts).toEqual([]);
+    expect(g().pot).toBe(10); // Old Ledger
+    expect(g().inventory.pegs).toEqual([{ kind: "wheel", tier: 1 }]); // kept peg, copy 1, tier 1
+    expect(g().meta.keptPeg).toBeNull();
+    for (const id of alumni) expect(g().questions.some((q) => q.conceptId === id)).toBe(true); // Alumni pegs draw on these
+    expect(Object.keys(g().conceptState)).toEqual(soil.concepts.map((c) => c.id));
+
+    // Spaced Out: a bomb defuses in the same Shift, on a different question
+    useGame.setState({ shiftLog: { date: "", count: 0 } });
+    g().startShift();
+    const first = g().session!.offer[0];
+    g().choose(first);
+    answer("certain", false);
+    drop();
+    expect(g().conceptState[first].bombActive).toBe(true);
+    let tries = 0;
+    while (g().conceptState[first].bombActive && tries++ < SHIFT_LENGTH - 1) {
+      g().choose(g().session!.offer.includes(first) ? first : g().session!.offer[0]);
+      answer("pretty");
+      drop();
+    }
+    expect(g().conceptState[first].bombActive).toBe(false);
   });
 
   it("daily cap stops new Shifts", () => {
     const today = new Date().toISOString().slice(0, 10);
-    useGame.setState({ shiftLog: { date: today, count: 6 }, screen: "hub" });
+    useGame.setState({ shiftLog: { date: today, count: 6 }, screen: "hub", session: null });
     g().startShift();
     expect(g().screen).toBe("hub");
     expect(g().line).toMatch(/Enough for today/);
@@ -166,7 +257,7 @@ describe("streaks and resuming", () => {
     expect([0, 1, 2, 3, 4, 5, 9].map(streakMultiplier)).toEqual([1, 1, 1.5, 2, 2.5, 3, 3]);
   });
 
-  it("correct answers build the streak, it multiplies drop chips, and a miss resets it", async () => {
+  it("correct answers build the streak, it multiplies the bet payout, and a miss resets it", async () => {
     await fresh();
     g().startShift();
     for (let i = 1; i <= 3; i++) {
@@ -174,15 +265,21 @@ describe("streaks and resuming", () => {
       right();
       expect(g().streak).toBe(i);
       expect(g().reveal!.streak).toBe(i);
+      const m = [1, 1.5, 2][i - 1];
+      expect(g().reveal!.chips).toBe(Math.round(4 * m));
       const before = g().chips;
       g().finishDrop(10); // pretend the board paid 10
-      expect(g().chips - before).toBe(Math.round(10 * [1, 1.5, 2][i - 1]));
+      expect(g().chips - before).toBe(Math.round(4 * m) + 10); // the board's luck is never multiplied
     }
+    // the multiplier you play at scales the debt just the same
     g().choose(g().session!.offer[0]);
     const q = g().questions.find((x) => x.id === g().session!.questionId)!;
-    g().answer(q.correct === "A" ? "B" : "A", "guess");
+    const chips = g().chips;
+    g().answer(q.correct === "A" ? "B" : "A", "certain");
     expect(g().streak).toBe(0);
     expect(g().reveal!.lostStreak).toBe(3);
+    expect(g().reveal!.debt).toBe(12 * 2.5);
+    expect(g().chips).toBe(chips);
   });
 
   it("leaving a Shift for the Shop keeps your place, including an undropped answer", async () => {
@@ -214,5 +311,136 @@ describe("streaks and resuming", () => {
     g().resume();
     expect(g().screen).toBe("question");
     expect(g().session!.questionId).toBe(qid);
+  });
+});
+
+describe("shop pegs and old saves", () => {
+  it("buys up to 3 copies of a peg at the unlocked tier, each dearer than the last", async () => {
+    const l = await loadUnit("Databases 101", "2026-10-11", () => {});
+    g().setup(l.unit, l.concepts, l.questions);
+    useGame.setState({ chips: 1000 });
+    const prices: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const before = g().chips;
+      g().buy("bumper");
+      prices.push(before - g().chips);
+    }
+    expect(prices.slice(0, 3)).toEqual([75, 87, 100]); // ceil(55 * 1.15 ^ copies)
+    expect(prices[3]).toBe(0); // a 4th copy isn't for sale
+    expect(g().inventory.pegs).toEqual([1, 1, 1].map((tier) => ({ kind: "bumper", tier })));
+  });
+  it("loads an old sure-thing-v1 save with renamed plain pegs and no shop state", async () => {
+    const old = { chips: 7, inventory: { secondChance: 1, pegs: ["roulette", "blackjack", "bumper"] }, screen: "hub" };
+    const m = mergeSave(old, { ...g(), debt: 0 });
+    expect(m.chips).toBe(7);
+    expect(m.debt).toBe(0);
+    expect(m.inventory.pegs).toEqual([{ kind: "wheel", tier: 1 }, { kind: "quiz21", tier: 1 }, { kind: "bumper", tier: 1 }]);
+    expect(m.shop).toEqual({ boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] });
+  });
+});
+
+describe("knowledge mechanics through the store", () => {
+  const fresh = async () => {
+    const l = await loadUnit("Databases 101", "2026-10-11", () => {});
+    g().setup(l.unit, l.concepts, l.questions);
+    useGame.setState({ shiftLog: { date: "", count: 0 } });
+  };
+  it("Go Deeper is offered only after a right answer and pays flat chips", async () => {
+    await fresh();
+    g().startShift();
+    g().choose(g().session!.offer[0]);
+    let q = g().questions.find((x) => x.id === g().session!.questionId)!;
+    g().answer(q.correct === "A" ? "B" : "A", "guess");
+    g().goDeeper();
+    expect(g().reveal!.deeper).toBeUndefined(); // never after a loss
+    g().finishDrop(0);
+    g().choose(g().session!.offer[0]);
+    q = g().questions.find((x) => x.id === g().session!.questionId)!;
+    g().answer(q.correct, "pretty");
+    g().goDeeper();
+    const d = g().questions.find((x) => x.id === g().reveal!.deeper!.questionId)!;
+    expect(d.conceptId).toBe(q.conceptId);
+    expect(d.difficulty).toBeGreaterThanOrEqual(q.difficulty);
+    const chips = g().chips;
+    g().answerDeeper(d.correct);
+    expect(g().chips).toBe(chips + 3);
+    g().answerDeeper(d.correct); // once only
+    expect(g().chips).toBe(chips + 3);
+  });
+  it("Calibration Keno marks lock in at the start of a Shift and settle at the end", async () => {
+    await fresh();
+    g().toggleKeno("nulls");
+    g().toggleKeno("joins");
+    g().toggleKeno("joins");
+    expect(g().kenoMarks).toEqual(["nulls"]);
+    g().startShift();
+    expect(g().session!.keno).toEqual(["nulls"]);
+    expect(g().kenoMarks).toEqual([]);
+    g().choose("nulls");
+    const q = g().questions.find((x) => x.id === g().session!.questionId)!;
+    g().answer(q.correct === "A" ? "B" : "A", "guess"); // marked and wrong
+    expect(g().session!.kenoDebt).toBe(2);
+    expect(g().debt).toBe(0); // settled at the end of the Shift, not before
+  });
+  it("Calm mode unlocks a Mystery Fact on every second right Certain answer", async () => {
+    await fresh();
+    g().updateSettings({ calm: true });
+    g().startShift();
+    const facts: boolean[] = [];
+    for (let i = 0; i < 4; i++) {
+      g().choose(g().session!.offer[0]);
+      const q = g().questions.find((x) => x.id === g().session!.questionId)!;
+      g().answer(q.correct, "certain");
+      facts.push(Boolean(g().reveal!.fact));
+      g().finishDrop(0);
+    }
+    expect(facts).toEqual([false, true, false, true]);
+    g().updateSettings({ calm: false });
+  });
+});
+
+describe("Collector's Audit and stakes", () => {
+  it("comes due every 3 to 4 days, pays a pot share when cleared, and moves the story on", async () => {
+    const l = await loadUnit("Databases 101", "2026-10-11", () => {});
+    g().setup(l.unit, l.concepts, l.questions);
+    expect(auditDue(g())).toBe(false);
+    const past = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+    useGame.setState({ run: { ...g().run, start: past }, pot: 20, meta: { ...g().meta, story: [] } });
+    expect(auditDue(g())).toBe(true);
+    g().startAudit();
+    expect(g().session!.kind).toBe("audit");
+    expect(g().session!.auditMod).toBeTruthy();
+    for (let i = 0; i < 5; i++) {
+      answer("pretty");
+      drop();
+    }
+    expect(g().screen).toBe("summary");
+    expect(g().session!.potPaid).toBe(5);
+    expect(g().pot).toBe(15);
+    expect(g().run.auditsDone).toBe(1);
+    expect(g().meta.story).toContain("auditCleared");
+    expect(auditDue(g())).toBe(false);
+  });
+  it("stakes are opt-in, unlock in order with calibration grade 2, and are off in Calm mode", async () => {
+    useGame.setState({ meta: { ...g().meta, stakeUnlocked: 3, stake: 1 } });
+    g().setStake(3);
+    expect(g().meta.stake).toBe(3);
+    g().setStake(4);
+    expect(g().meta.stake).toBe(3);
+    const l = await loadUnit("Databases 101", "2026-10-11", () => {});
+    g().setup(l.unit, l.concepts, l.questions);
+    expect(g().run.stake).toBe(3);
+    useGame.setState({ chips: 999 });
+    for (let i = 0; i < 4; i++) g().buy("secondChance");
+    expect(g().inventory.secondChance).toBe(2); // Stake 3: one fewer Second Chance
+    g().updateSettings({ calm: true });
+    g().setup(l.unit, l.concepts, l.questions);
+    expect(g().run.stake).toBe(1);
+    g().updateSettings({ calm: false });
+  });
+  it("an old save gets empty meta and run state", () => {
+    const m = mergeSave({ chips: 3 }, g());
+    expect(m.meta).toEqual(initialMeta);
+    expect(m.run.auditsDone).toBe(0);
   });
 });

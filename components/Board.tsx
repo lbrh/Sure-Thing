@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { autoMultiplier, BUCKET_TOP, CHUTE_BOTTOM, CHUTES, createDrop, WALL_PEG_R, WALL_PEGS_Y, H, MEGA_MULTIPLIERS, MULTIPLIERS, W, type Drop, type Hold, type PegSpec, type SpecialKind } from "@/lib/board";
+import { autoResult, BUCKET_TOP, CHUTE_BOTTOM, CHUTES, createDrop, WALL_PEG_R, WALL_PEGS_Y, H, MEGA_MULTIPLIERS, MULTIPLIERS, W, type Drop, type Hold, type HoldResult, type PegSpec, type SpecialKind } from "@/lib/board";
 import type { PegState } from "@/lib/engine";
 import { sfx } from "@/lib/sound";
 
@@ -24,12 +24,12 @@ const BUCKET_COLOR = (m: number) => (m >= 10 ? null : m >= 3 ? "#ff0000" : m >= 
 export interface BoardProps {
   pegs: PegSpec[];
   states: Record<string, PegState>;
-  drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean } | null;
+  drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean; fever?: boolean; streakMult?: number; wheelExtra?: number[] } | null;
   showMega?: boolean; // static preview of next Shift's mega bucket
-  onDone?: (chips: number) => void;
-  /** Captured ball: show a popup, then call release(multiplier). Leave unset to auto-play (Calm mode). */
-  onHold?: (hold: Hold, release: (mult: number) => void) => void;
-  onMega?: (mult: number, value: number) => void;
+  onDone?: (chips: number, skill: number, armed: string[]) => void;
+  /** Captured ball: show a popup, then call release(result). Leave unset to auto-play. Calm mode pays the wheel's expected value without asking. */
+  onHold?: (hold: Hold, release: (r: HoldResult) => void) => void;
+  onCheer?: (level: 1 | 2 | 3, value: number) => void;
   onPegClick?: (peg: PegSpec) => void;
   spark?: string[]; // concept ids whose pegs get a fuse-spark / defuse ring
   popIn?: boolean;
@@ -46,13 +46,14 @@ export default function Board(props: BoardProps) {
   const doneRef = useRef(false);
   const [running, setRunning] = useState(false);
   const [left, setLeft] = useState(0);
+  const [boardMult, setBoardMult] = useState(1);
   const hover = useRef(-1);
   const live = useRef(props);
   live.current = props;
 
   const statesKey = JSON.stringify(states);
   const frozenStates = useMemo(() => states, [statesKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const dropKey = drop ? `${drop.balls}:${drop.seed}:${drop.magnet}:${drop.mega}:${drop.quake}` : "";
+  const dropKey = drop ? `${drop.balls}:${drop.seed}:${drop.magnet}:${drop.mega}:${drop.quake}:${drop.fever}:${drop.streakMult}:${drop.wheelExtra}` : "";
 
   useEffect(() => {
     const el = canvas.current;
@@ -66,15 +67,16 @@ export default function Board(props: BoardProps) {
     let acc = STEP;
     doneRef.current = false;
     // you aim every ball yourself, unless reduced motion asks for an instant result
-    sim.current = drop && drop.balls > 0 ? createDrop(pegs, frozenStates, { ...drop, manual: !reducedMotion }) : null;
+    sim.current = drop && drop.balls > 0 ? createDrop(pegs, frozenStates, { ...drop, manual: !reducedMotion, calm: props.calm }) : null;
     setRunning(Boolean(sim.current));
     setLeft(sim.current?.remaining ?? 0);
+    setBoardMult(1);
 
     const finish = () => {
       if (doneRef.current) return;
       doneRef.current = true;
       setRunning(false);
-      live.current.onDone?.(sim.current?.chips ?? 0);
+      live.current.onDone?.(sim.current?.chips ?? 0, sim.current?.skill ?? 0, sim.current?.armed ?? []);
     };
     if (drop && drop.balls === 0) queueMicrotask(finish);
     if (sim.current && reducedMotion) sim.current.resolve();
@@ -96,10 +98,10 @@ export default function Board(props: BoardProps) {
       // captured balls: hand the popup to the parent, or auto-play it
       if (s?.holds.length) {
         const h = s.holds[0];
-        if (!p.onHold) s.release(h.id, autoMultiplier(h));
+        if (!p.onHold || (calm && h.kind === "wheel")) s.release(h.id, autoResult(h, calm));
         else if (askedHold !== h.id) {
           askedHold = h.id;
-          p.onHold(h, (m) => s.release(h.id, m));
+          p.onHold(h, (r) => s.release(h.id, r));
         }
       }
       // fixed 60Hz timestep, catching up (max 8 steps) when frames are slow; paused while a popup is open
@@ -112,10 +114,12 @@ export default function Board(props: BoardProps) {
         let pegSound = false;
         for (; seenEvents < s.events.length; seenEvents++) {
           const e = s.events[seenEvents];
-          if (e.type === "mega") {
-            p.onMega?.(e.mult, e.value);
-            if (p.sound) sfx.mega();
-          } else if (!pegSound && p.sound) {
+          if (e.type === "cheer") {
+            p.onCheer?.(e.level, e.value);
+            if (p.sound && e.level >= 2) sfx.mega();
+          } else if (e.type === "boardMult") setBoardMult(e.mult);
+          else if (e.type === "armed") continue;
+          else if (!pegSound && p.sound) {
             pegSound = true; // at most one tick per frame
             sfx.peg(e.state);
           }
@@ -159,8 +163,11 @@ export default function Board(props: BoardProps) {
       for (let i = 0; i < visible; i++) {
         const pg = pegs[i];
         const flash = s?.flashes.get(i) ?? 0;
+        // hit pegs flash, then stay dimmed for the rest of the drop
+        c.globalAlpha = !flash && s?.fallen.has(i) ? 0.35 : 1;
         if (pg.special) drawSpecial(c, pg.x, pg.y, pg.special, frame, calm);
         else drawPeg(c, pg.x, pg.y, pg.conceptId ? frozenStates[pg.conceptId] ?? "cold" : "neutral");
+        c.globalAlpha = 1;
         if (flash) {
           c.strokeStyle = C.white;
           c.lineWidth = 2;
@@ -183,20 +190,11 @@ export default function Board(props: BoardProps) {
           if (b.done || b.held) continue;
           c.beginPath();
           c.arc(b.body.position.x, b.body.position.y, 7, 0, Math.PI * 2);
-          c.fillStyle = b.boost > 1 ? C.shaky : b.boost === 0 ? C.cold : b.child ? C.cyan : C.white;
+          c.fillStyle = b.child ? C.cyan : C.white;
           c.fill();
-          c.strokeStyle = b.boost > 1 ? C.bomb : "#000";
-          c.lineWidth = b.boost > 1 ? 2 : 1;
+          c.strokeStyle = "#000";
+          c.lineWidth = 1;
           c.stroke();
-          if (b.boost !== 1) {
-            // carry the blackjack multiplier visibly down the board
-            c.font = `900 11px "Arial Black", sans-serif`;
-            c.textAlign = "center";
-            c.fillStyle = "#000";
-            c.fillText(`x${b.boost}`, b.body.position.x + 1, b.body.position.y - 9);
-            c.fillStyle = b.boost > 1 ? C.shaky : C.cold;
-            c.fillText(`x${b.boost}`, b.body.position.x, b.body.position.y - 10);
-          }
         }
 
       // floating numbers
@@ -262,6 +260,12 @@ export default function Board(props: BoardProps) {
             <span className="lbl">BALLS</span>
             {left}
           </span>
+          {boardMult > 1 && (
+            <span className="counter" aria-live="polite">
+              <span className="lbl">BOARD</span>x{boardMult}
+            </span>
+          )}
+          {drop?.fever && <span className="badge hot">FEVER</span>}
           <button className="btn small" onClick={() => sim.current?.resolve()}>
             Skip
           </button>
@@ -359,34 +363,41 @@ function drawSpecial(c: CanvasRenderingContext2D, x: number, y: number, k: Speci
   c.lineWidth = 2;
   c.textAlign = "center";
   c.textBaseline = "middle";
-  if (k === "roulette") {
-    for (let i = 0; i < 8; i++) {
+  if (k === "wheel") {
+    // game show prize wheel: seven bright segments and a bulb rim
+    const cols = [C.cyan, C.solid, C.magenta, C.orange, C.shaky, "#0000ff", C.white];
+    for (let i = 0; i < 7; i++) {
       c.beginPath();
       c.moveTo(x, y);
-      c.arc(x, y, 12, spin + (i * Math.PI) / 4, spin + ((i + 1) * Math.PI) / 4);
-      c.fillStyle = i % 2 ? C.bomb : C.white;
+      c.arc(x, y, 12, spin + (i * 2 * Math.PI) / 7, spin + ((i + 1) * 2 * Math.PI) / 7);
+      c.fillStyle = cols[i];
       c.fill();
     }
     c.beginPath();
     c.arc(x, y, 12, 0, Math.PI * 2);
+    c.setLineDash([2, 3]);
     c.strokeStyle = C.shaky;
     c.stroke();
-  } else if (k === "blackjack") {
-    c.fillStyle = C.white;
-    c.fillRect(x - 9, y - 12, 18, 24);
-    c.strokeStyle = C.shaky;
-    c.strokeRect(x - 9, y - 12, 18, 24);
-    c.fillStyle = C.bomb;
+    c.setLineDash([]);
+  } else if (k === "quiz21") {
+    // quiz show buzzer with the target on it
+    c.beginPath();
+    c.arc(x, y, 12, 0, Math.PI * 2);
+    c.fillStyle = C.cyan;
+    c.fill();
+    c.strokeStyle = C.white;
+    c.stroke();
+    c.fillStyle = "#000";
     c.font = `900 10px "Arial Black", sans-serif`;
-    c.fillText("21", x, y + 1);
-  } else if (k === "quiz") {
-    c.fillStyle = C.magenta;
+    c.fillText("21?", x, y + 1);
+  } else if (k === "quiz" || k === "alumni") {
+    c.fillStyle = k === "alumni" ? C.orange : C.magenta;
     c.fillRect(x - 10, y - 10, 20, 20);
     c.strokeStyle = C.white;
     c.strokeRect(x - 10, y - 10, 20, 20);
     c.fillStyle = "#000";
     c.font = `900 14px "Arial Black", sans-serif`;
-    c.fillText("?", x, y + 1);
+    c.fillText(k === "alumni" ? "A" : "?", x, y + 1);
   } else if (k === "splitter") {
     c.beginPath();
     c.moveTo(x - 11, y - 9);

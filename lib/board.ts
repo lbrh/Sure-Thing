@@ -1,6 +1,6 @@
 import Matter from "matter-js";
 import { rng, type PegState } from "./engine";
-import { autoplay, BJ_MULT, ROULETTE, rouletteSlot } from "./minigames";
+import { celebration, PRIZE_WHEEL, wheelEV, wheelSlot } from "./minigames";
 
 export const W = 360;
 export const H = 550;
@@ -8,14 +8,27 @@ export const PEG_R = 7;
 export const BALL_R = 7;
 export const MULTIPLIERS = [0.5, 1, 2, 3, 2, 1, 0.5];
 export const MEGA_MULTIPLIERS = [0.5, 1, 2, 10, 2, 1, 0.5];
+/** Fever: the bonus round after the last bomb on the board is defused. Five buckets, three extra balls. */
+export const FEVER_MULTIPLIERS = [2, 3, 5, 3, 2];
+export const FEVER_BALLS = 3;
+/** Calm mode and reduced motion skip the Fever drop for a plain summary paying its expected value: 3 balls at the average Fever bucket. */
+export const FEVER_FLAT = Math.round(FEVER_BALLS * (FEVER_MULTIPLIERS.reduce((a, b) => a + b, 0) / FEVER_MULTIPLIERS.length));
+/**
+ * Board multiplier as bombs fall in a drop: x2 once 5 or fewer bombs are left standing, x3 at 2 or fewer.
+ * A bomb falls when a ball hits either of its two pegs. A comeback mechanic for bomb-heavy boards: it only runs on a board
+ * that starts the drop with 6 or more bombs,
+ * and at least one has to fall first. Lighter boards stay at x1, which keeps luck from outweighing knowing.
+ */
+export const BOARD_MULT_MIN = 6;
+export const boardMultiplier = (start: number, fallen: number) =>
+  start < BOARD_MULT_MIN || fallen === 0 ? 1 : start - fallen <= 2 ? 3 : start - fallen <= 5 ? 2 : 1;
 export const YIELD: Record<PegState | "neutral", number> = { cold: 0, shaky: 1, solid: 2, bomb: -2, neutral: 0 };
 // Tuned with tests/tuning.test.ts: a ball is worth (BASE + sum of peg yields) * bucket * SCALE.
 export const BASE = 1;
-export const SCALE = 0.36;
+export const SCALE = 0.28;
 export const MAX_ACTIVE = 12;
 export const MAX_BALLS = 40; // splitter cap
 export const MAGNET_R = 30;
-export const MEGA_AT = 5; // multiplier that triggers shake + rainbow
 // Fairness knobs, checked by tests/tuning.test.ts ("aim matters, walls don't swallow balls")
 export const PEG_BOUNCE = 0.3;
 export const BALL_BOUNCE = 0.3;
@@ -38,16 +51,27 @@ export const BUCKET_TOP = TOP + ROWS * ROW_GAP + 10;
 export const WALL_PEGS_Y = Array.from({ length: ROWS }, (_, r) => TOP + r * ROW_GAP + ROW_GAP / 2);
 
 /** Shop pegs. Hold pegs capture the ball and open a popup; the rest act on the physics. */
-export type SpecialKind = "roulette" | "blackjack" | "quiz" | "splitter" | "blackhole" | "bumper";
-export type HoldKind = "roulette" | "blackjack" | "quiz";
-export const isHold = (k?: SpecialKind): k is HoldKind => k === "roulette" || k === "blackjack" || k === "quiz";
+export type SpecialKind = "wheel" | "quiz21" | "quiz" | "splitter" | "blackhole" | "bumper" | "alumni";
+/** Alumni is never sold: a rare peg for a weak concept from an earlier unit, asking one of its questions. */
+export type HoldKind = "wheel" | "quiz21" | "quiz" | "alumni";
+export const isHold = (k?: SpecialKind): k is HoldKind => k === "wheel" || k === "quiz21" || k === "quiz" || k === "alumni";
 
 export interface PegSpec {
   x: number;
   y: number;
   conceptId?: string;
   special?: SpecialKind;
+  tier?: number; // 1 to 4: each tier adds +1 chip every time the peg fires, and +1 to every wheel segment
 }
+
+/** A shop peg you own. Up to 3 copies of each kind, each bought at the highest tier unlocked at the time. */
+export interface OwnedPeg {
+  kind: SpecialKind;
+  tier: number;
+}
+
+/** Prize Wheel segments: +1 per tier above 1, plus the streak synergy (+1 at x2 streak, +2 at x3). */
+export const tierSegments = (tier = 1, extra = 0) => PRIZE_WHEEL.map((v) => v + tier - 1 + extra);
 
 /** Fixed peg grid; each concept gets 2 scoring pegs, placed by a seeded shuffle. */
 export function layoutPegs(conceptIds: string[], seed: number): PegSpec[] {
@@ -67,7 +91,8 @@ export function layoutPegs(conceptIds: string[], seed: number): PegSpec[] {
 }
 
 /** Owned specials take over neutral pegs, most central first, in purchase order. */
-export function placeSpecials(pegs: PegSpec[], specials: SpecialKind[]): PegSpec[] {
+export function placeSpecials(pegs: PegSpec[], owned: (OwnedPeg | SpecialKind)[]): PegSpec[] {
+  const specials = owned.map((o) => (typeof o === "string" ? { kind: o, tier: 1 } : o));
   const midY = TOP + ((ROWS - 1) * ROW_GAP) / 2;
   const free = pegs
     .map((p, i) => ({ p, i }))
@@ -75,7 +100,7 @@ export function placeSpecials(pegs: PegSpec[], specials: SpecialKind[]): PegSpec
     .sort((a, b) => Math.abs(a.p.y - midY) + Math.abs(a.p.x - W / 2) * 0.6 - (Math.abs(b.p.y - midY) + Math.abs(b.p.x - W / 2) * 0.6))
     .map(({ i }) => i);
   const out = pegs.map((p) => ({ ...p }));
-  specials.slice(0, free.length).forEach((k, n) => (out[free[n]].special = k));
+  specials.slice(0, free.length).forEach((k, n) => Object.assign(out[free[n]], { special: k.kind, tier: k.tier }));
   return out;
 }
 
@@ -97,18 +122,29 @@ interface Ball {
   held: boolean;
   child: boolean;
   warped: boolean;
-  boost: number; // blackjack multiplier the ball carries down to its bucket
 }
 
 export interface Hold {
   id: number;
   kind: HoldKind;
   peg: number;
-  seed: number; // deterministic outcome source (wheel slot, card deck, quiz pick)
-  ballValue: number; // chips the ball carries in; payout = ballValue * multiplier
+  seed: number; // deterministic outcome source (wheel segment, quiz pick)
+  ballValue: number; // chips the ball carries in; never at stake
+  segments: number[]; // Prize Wheel segments for this ball
 }
 
-export type DropEvent = { type: "peg"; state: PegState | "neutral" | SpecialKind } | { type: "mega"; mult: number; value: number };
+/** What a popup hands back. Wheel and 21 Quiz add a bonus and the ball drops on; Pop Quiz pays the ball times mult. */
+export interface HoldResult {
+  bonus?: number;
+  skill?: number; // chips paid for correct answers inside the popup
+  mult?: number;
+}
+
+export type DropEvent =
+  | { type: "peg"; state: PegState | "neutral" | SpecialKind }
+  | { type: "cheer"; level: 1 | 2 | 3; value: number }
+  | { type: "armed"; conceptId: string }
+  | { type: "boardMult"; mult: number };
 
 export interface DropOptions {
   balls: number;
@@ -117,7 +153,15 @@ export interface DropOptions {
   mega?: boolean; // centre bucket x10 for this Shift
   quake?: boolean; // gravity wobbles sideways
   manual?: boolean; // player drops each ball by picking a chute; otherwise balls auto-drop near the centre
+  calm?: boolean; // chance devices resolve to their expected value
+  fever?: boolean; // Fever round: five Fever buckets
+  streakMult?: number; // synergy: Prize Wheel segments grow with streak tier
+  synergies?: boolean; // default on; off only to measure them
+  wheelExtra?: number[]; // Seal of Approval: extra Prize Wheel segments this Shift
 }
+
+/** Prize Wheel synergy: +1 on every segment at a x2 streak or more, +2 at x3. */
+export const streakTier = (streakMult = 1) => (streakMult >= 3 ? 2 : streakMult >= 2 ? 1 : 0);
 
 /** Seven drop chutes across the top, one above each bucket. */
 export const CHUTES = 7;
@@ -125,19 +169,22 @@ export const CHUTE_BOTTOM = 56;
 export const chuteX = (i: number) => (W / CHUTES) * (i + 0.5);
 
 /** Popup pegs pay the ball's full value (no SCALE), min 1, so a big multiplier feels big. */
-export const holdValue = (total: number) => Math.max(1, BASE + total);
+export const holdValue = (total: number) => Math.max(1, Math.round((BASE + total) * SCALE));
 
-/** Outcome used when nobody plays the popup (Skip, Calm mode, reduced motion, tests). */
-export function autoMultiplier(h: Pick<Hold, "kind" | "seed">): number {
-  if (h.kind === "roulette") return ROULETTE[rouletteSlot(rng(h.seed)())];
-  if (h.kind === "blackjack") return BJ_MULT[autoplay(h.seed)];
-  return 1; // quiz: no answer, no change
+/** The wheel segment a ball lands on: seeded, so Skip and the animation agree. */
+export const wheelResult = (h: Pick<Hold, "seed" | "segments">) => h.segments[wheelSlot(rng(h.seed)(), h.segments.length)];
+
+/** Outcome used when nobody plays the popup (Skip, reduced motion, tests). Calm mode pays the wheel's expected value. */
+export function autoResult(h: Pick<Hold, "kind" | "seed" | "segments">, calm = false): HoldResult {
+  if (h.kind === "wheel") return { bonus: calm ? wheelEV(h.segments) : wheelResult(h) };
+  if (h.kind === "quiz" || h.kind === "alumni") return { mult: 1 }; // no answer: the ball keeps its value
+  return {}; // 21 Quiz: no hand played, no bonus
 }
 
 export type Drop = ReturnType<typeof createDrop>;
 
 export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, opts: DropOptions) {
-  const mult = opts.mega ? MEGA_MULTIPLIERS : MULTIPLIERS;
+  const mult = opts.fever ? FEVER_MULTIPLIERS : opts.mega ? MEGA_MULTIPLIERS : MULTIPLIERS;
   const rand = rng(opts.seed);
   const engine = Matter.Engine.create({ gravity: { x: 0, y: 1 } });
   const world = engine.world;
@@ -169,9 +216,17 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
   const holds: Hold[] = [];
   const texts: FloatText[] = [];
   const flashes = new Map<number, number>(); // peg index -> frames left
+  const fallen = new Set<number>(); // pegs hit this drop: they flash, then stay dimmed until the drop ends
+  const armed = new Set<string>(); // bomb concepts a ball hit: their retest comes up next
+  const bombs = new Set(pegs.flatMap((p) => (p.conceptId && !p.special && stateOf(p) === "bomb" ? [p.conceptId] : [])));
+  let boardMult = 1;
+  const kinds = new Set(pegs.map((p) => p.special));
+  const converge = opts.synergies !== false && kinds.has("splitter") && kinds.has("blackhole");
+  const bombAt = pegs.flatMap((p, i) => (p.conceptId && !p.special && stateOf(p) === "bomb" ? [i] : []));
   const events: DropEvent[] = [];
   const landed = mult.map(() => 0); // balls per bucket, for fairness checks
   let chips = 0;
+  let skill = 0; // chips from answering popup questions, for the skill-share meter
   let spawned = 0;
   let auto = !opts.manual;
   let cooldown = 0;
@@ -182,45 +237,60 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
   const addBall = (x: number, y: number, child = false, total = 0) => {
     const body = Matter.Bodies.circle(x, y, BALL_R, { restitution: BALL_BOUNCE, friction: 0.001, frictionAir: AIR, label: "ball" });
     Matter.Composite.add(world, body);
-    const b: Ball = { id: nextId++, body, total, hit: new Set(), steps: 0, done: false, held: false, child, warped: false, boost: 1 };
+    const b: Ball = { id: nextId++, body, total, hit: new Set(), steps: 0, done: false, held: false, child, warped: false };
     balls.push(b);
     return b;
   };
 
-  const payout = (b: Ball, m: number, x: number, y: number, value: number) => {
+  /** Pay chips. The cheer compares the ball's outcome with what it already had (see celebration). */
+  const pay = (value: number, x: number, y: number, outcome: number, had: number) => {
+    chips += value;
+    const level = celebration(outcome, had);
+    texts.push({ x, y, text: `+${value}`, kind: level ? "wild" : "bucket", age: 0 });
+    if (level) events.push({ type: "cheer", level, value });
+  };
+
+  const payout = (b: Ball, x: number, y: number, value: number, had: number) => {
     b.done = true;
     b.held = false;
-    chips += value;
-    texts.push({ x, y, text: `+${value}`, kind: m >= MEGA_AT ? "wild" : "bucket", age: 0 });
-    if (m >= MEGA_AT) events.push({ type: "mega", mult: m, value });
+    pay(value, x, y, value, had);
     Matter.Composite.remove(world, b.body);
   };
 
   const bank = (b: Ball, bucket: number) => {
     if (b.done || b.held) return;
     landed[bucket]++;
-    const m = mult[bucket] * b.boost;
-    payout(b, m, bucket * slotW + slotW / 2, H - 40, Math.round(Math.max(0, BASE + b.total) * m * SCALE));
+    const base = Math.max(0, BASE + b.total) * SCALE;
+    payout(b, bucket * slotW + slotW / 2, H - 40, Math.round(base * mult[bucket] * boardMult), Math.round(base));
   };
 
   const say = (i: number, text: string) => texts.push({ x: pegs[i].x, y: pegs[i].y - 14, text, kind: "wild", age: 0 });
 
   const special = (b: Ball, i: number) => {
     const k = pegs[i].special!;
+    const tier = pegs[i].tier ?? 1;
     events.push({ type: "peg", state: k });
+    if (tier > 1 && k !== "wheel") pay(tier - 1, pegs[i].x, pegs[i].y - 24, 0, 0); // stronger tiers pay a little every time they fire
     if (isHold(k)) {
       b.held = true;
       Matter.Composite.remove(world, b.body);
-      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total) });
-      say(i, k === "quiz" ? "POP QUIZ!" : k === "roulette" ? "SPIN!" : "21?");
+      holds.push({ id: b.id, kind: k, peg: i, seed: opts.seed * 1000 + b.id + 1, ballValue: holdValue(b.total), segments: [...tierSegments(tier, streakTier(opts.streakMult)), ...(opts.wheelExtra ?? [])] });
+      say(i, k === "quiz" ? "POP QUIZ!" : k === "wheel" ? "PRIZE WHEEL!" : k === "alumni" ? "ALUMNI!" : "21 QUIZ!");
     } else if (k === "splitter" && !b.child && balls.length < MAX_BALLS) {
-      for (const dx of [-1, 1]) Matter.Body.setVelocity(addBall(pegs[i].x + dx * 12, pegs[i].y - 4, true, b.total).body, { x: dx * 2.5, y: -1.5 });
-      say(i, "SPLIT!");
+      for (const dx of [-1, 1]) {
+        // synergy: with a Black Hole on the board, the copies converge on the centre instead of fanning out
+        const vx = converge ? Math.sign(W / 2 - pegs[i].x || dx) * 1.2 + dx * 0.4 : dx * 2.5;
+        Matter.Body.setVelocity(addBall(pegs[i].x + dx * 12, pegs[i].y - 4, true, b.total).body, { x: vx, y: -1.5 });
+      }
+      say(i, converge ? "SPLIT TO CENTRE!" : "SPLIT!");
     } else if (k === "bumper") {
       const { x, y } = b.body.position;
-      const d = Math.hypot(x - pegs[i].x, y - pegs[i].y) || 1;
-      Matter.Body.setVelocity(b.body, { x: ((x - pegs[i].x) / d) * 8, y: ((y - pegs[i].y) / d) * 8 });
-      say(i, "BOING!");
+      // synergy: with the Magnet on, the bumper fires the ball at the nearest bomb peg
+      const target = opts.magnet && opts.synergies !== false && bombAt.length ? bombAt.reduce((a, j) => (Math.hypot(pegs[j].x - x, pegs[j].y - y) < Math.hypot(pegs[a].x - x, pegs[a].y - y) ? j : a)) : -1;
+      const [tx, ty] = target >= 0 ? [pegs[target].x - x, pegs[target].y - y] : [x - pegs[i].x, y - pegs[i].y];
+      const d = Math.hypot(tx, ty) || 1;
+      Matter.Body.setVelocity(b.body, { x: (tx / d) * 8, y: (ty / d) * 8 });
+      say(i, target >= 0 ? "BOING! TO THE BOMB!" : "BOING!");
     }
   };
 
@@ -228,8 +298,16 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     if (b.hit.has(i) || b.held || b.done) return;
     b.hit.add(i);
     flashes.set(i, 18);
+    fallen.add(i);
     if (pegs[i].special) return special(b, i);
     const st = stateOf(pegs[i]);
+    if (st === "bomb" && pegs[i].conceptId) {
+      armed.add(pegs[i].conceptId!);
+      events.push({ type: "armed", conceptId: pegs[i].conceptId! });
+      const m = boardMultiplier(bombs.size, armed.size);
+      if (m !== boardMult) events.push({ type: "boardMult", mult: m });
+      boardMult = m;
+    }
     const y = YIELD[st];
     b.total += y;
     events.push({ type: "peg", state: st });
@@ -272,16 +350,16 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
       const { x, y } = b.body.position;
       // Magnet Peg: solid pegs pull in any ball that passes close by (counts as a hit)
       if (opts.magnet) for (const i of solids) if (Math.hypot(pegs[i].x - x, pegs[i].y - y) < MAGNET_R) hitPeg(b, i);
-      // Black Hole: pulls nearby balls in, then warps them back to the top once, +2 for the trip
+      // Black Hole: pulls nearby balls in, then warps them back to the top once, +1 peg value for the trip
       for (const i of holes) {
         const d = Math.hypot(pegs[i].x - x, pegs[i].y - y);
         if (b.warped || d > 80) continue;
         if (d < PEG_R + BALL_R + 2) {
           b.warped = true;
-          b.total += 2;
-          say(i, "WARP +2!");
+          b.total += 1;
+          say(i, "WARP!");
           events.push({ type: "peg", state: "blackhole" });
-          Matter.Body.setPosition(b.body, { x: 40 + rand() * (W - 80), y: 30 });
+          Matter.Body.setPosition(b.body, { x: converge ? W / 2 + (rand() - 0.5) * 20 : 40 + rand() * (W - 80), y: 30 });
           Matter.Body.setVelocity(b.body, { x: 0, y: 0 });
         } else Matter.Body.applyForce(b.body, b.body.position, { x: ((pegs[i].x - x) / d) * 0.00006, y: ((pegs[i].y - y) / d) * 0.00006 });
       }
@@ -294,25 +372,26 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     for (const [k, v] of flashes) v <= 1 ? flashes.delete(k) : flashes.set(k, v - 1);
   }
 
-  /** Pay out a captured ball at the popup's multiplier. */
-  function release(id: number, m: number) {
+  /** Settle a captured ball. A bonus is added and the ball drops back in; Pop Quiz pays the ball at its multiplier. */
+  function release(id: number, r: HoldResult) {
     const h = holds.findIndex((x) => x.id === id);
     if (h < 0) return;
     const [hold] = holds.splice(h, 1);
     const b = balls.find((x) => x.id === id)!;
     const p = pegs[hold.peg];
-    if (hold.kind === "blackjack") {
-      // the hand multiplies the ball, then it drops back in and keeps scoring until it hits a bucket
-      b.boost *= m;
-      b.held = false;
-      b.steps = 0;
-      texts.push({ x: p.x, y: p.y - 14, text: m ? `BALL x${m}!` : "BUST x0", kind: m ? "wild" : "minus", age: 0 });
-      Matter.Body.setPosition(b.body, { x: p.x + (rand() - 0.5) * 6, y: p.y + PEG_R + BALL_R + 2 });
-      Matter.Body.setVelocity(b.body, { x: (rand() - 0.5) * 2, y: 1.5 });
-      Matter.Composite.add(world, b.body);
-      return;
+    if (hold.kind === "quiz" || hold.kind === "alumni") {
+      const value = Math.round(hold.ballValue * Math.max(1, r.mult ?? 1));
+      skill += value - hold.ballValue;
+      return payout(b, p.x, p.y - 14, value, hold.ballValue);
     }
-    payout(b, m, p.x, p.y - 14, Math.round(hold.ballValue * m));
+    const bonus = (r.bonus ?? 0) + (r.skill ?? 0);
+    skill += r.skill ?? 0;
+    if (bonus > 0) pay(bonus, p.x, p.y - 14, hold.ballValue + bonus, hold.ballValue);
+    b.held = false;
+    b.steps = 0;
+    Matter.Body.setPosition(b.body, { x: p.x + (rand() - 0.5) * 6, y: p.y + PEG_R + BALL_R + 2 });
+    Matter.Body.setVelocity(b.body, { x: (rand() - 0.5) * 2, y: 1.5 });
+    Matter.Composite.add(world, b.body);
   }
 
   const finished = () => spawned >= opts.balls && holds.length === 0 && balls.every((b) => b.done);
@@ -331,12 +410,22 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     holds,
     texts,
     flashes,
+    fallen,
     events,
+    get armed() {
+      return [...armed];
+    },
+    get boardMult() {
+      return boardMult;
+    },
     stateOf,
     mult,
     landed,
     get chips() {
       return chips;
+    },
+    get skill() {
+      return skill;
     },
     get done() {
       return finished();
@@ -352,7 +441,7 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
       auto = true; // any balls not dropped yet go down the middle
       let guard = 0;
       while (!finished() && guard++ < 20000) {
-        while (holds.length) release(holds[0].id, autoMultiplier(holds[0]));
+        while (holds.length) release(holds[0].id, autoResult(holds[0], opts.calm));
         tick();
       }
       return chips;

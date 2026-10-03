@@ -4,13 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Board from "./Board";
 import Report from "./Report";
 import Shop from "./Shop";
-import { HoldModal, ITEM_INFO, MegaOverlay } from "./Mods";
+import { CheerOverlay, HoldModal, ITEM_INFO } from "./Mods";
 import { ColorSquares, Counter, Marquee, Window } from "./ui";
 import Chaos, { Banners, EmojiSwarm, confetti } from "./Chaos";
 import Seal, { sealDo } from "./Seal";
-import { inProgress, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
-import { layoutPegs, placeSpecials, type Hold, type PegSpec } from "@/lib/board";
-import { BALLS, PENALTY, badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
+import { Draft, Journal } from "./Meta";
+import { BingoCard, GoDeeper, KenoPanel, MysteryFact, ReadinessOdds, ScratchRows } from "./Knowledge";
+import { auditDue, inProgress, sessionName, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
+import { FEVER_BALLS, FEVER_FLAT, FEVER_MULTIPLIERS, layoutPegs, placeSpecials, type Hold, type HoldResult, type PegSpec } from "@/lib/board";
+import { badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
+import { answerMult, AUDIT_CLEAR, AUDIT_MODS, breakEven, GAIN, HANDS, MULT_CAP, pegHand, RELICS, SEAL_SEGMENT, skillShare, SKILL_TARGET, STAKES, stakeTable } from "@/lib/economy";
+import { drawOffer } from "@/lib/engine";
 import { CONF_LABEL, LINES, terms } from "@/lib/copy";
 import { sfx } from "@/lib/sound";
 import { loadUnit, SEEDED } from "@/lib/loadUnit";
@@ -22,7 +26,7 @@ const MARQUEE: [string, string][] = [
   ["BET ON WHAT YOU KNOW", "#00ff00"],
   ["NO REAL MONEY, EVER", "#ff0000"],
   ["CHIPS CAN'T BE BOUGHT", "#00ffff"],
-  ["NEW! ROULETTE PEG IN THE SHOP", "#ff00ff"],
+  ["NEW! PRIZE WHEEL PEG IN THE SHOP", "#ff00ff"],
   ["HONEST CONFIDENCE ALWAYS PAYS BEST", "#ffffff"],
   ["BEST VIEWED AT 800x600", "#ffff00"],
 ];
@@ -62,8 +66,12 @@ export default function App() {
           <Counter label="DAYS" value={days} digits={2} />
           <Counter label={t.Chips.toUpperCase()} value={g.chips} />
           <Counter label="STREAK" value={g.streak} digits={2} />
+          <Counter label="DEBT" value={g.debt} digits={3} />
           <span className="hide-sm">
-            <Counter label="DEBT" value={`${debt}%`} />
+            <Counter label="POT" value={g.pot} digits={3} />
+          </span>
+          <span className="hide-sm">
+            <Counter label="TO GO" value={`${debt}%`} />
           </span>
           <button className="btn small" onClick={() => g.go("settings")}>
             Settings
@@ -94,13 +102,15 @@ function Screen({ reduced }: { reduced: boolean }) {
     case "board": // older saves
       return <RevealScreen reduced={reduced} />;
     case "summary":
-      return <Summary />;
+      return <Summary reduced={reduced} />;
     case "shop":
       return <Shop />;
     case "report":
       return <Report />;
     case "settings":
       return <SettingsScreen />;
+    case "draft":
+      return <Draft />;
     default:
       return <Hub reduced={reduced} />;
   }
@@ -125,9 +135,11 @@ function usePegs() {
   const concepts = useGame((s) => s.concepts);
   const conceptState = useGame((s) => s.conceptState);
   const owned = useGame((s) => s.inventory.pegs);
+  // one rare Alumni peg when an earlier unit left a weak concept behind
+  const alumni = useGame((s) => s.meta.alumni.some((a) => s.questions.some((q) => q.conceptId === a.concept.id)));
   const pegs = useMemo(
-    () => placeSpecials(layoutPegs(concepts.map((c) => c.id), hashString(unit?.id ?? "")), owned),
-    [concepts, unit?.id, owned]
+    () => placeSpecials(layoutPegs(concepts.map((c) => c.id), hashString(unit?.id ?? "")), alumni ? [...owned, { kind: "alumni", tier: 1 }] : owned),
+    [concepts, unit?.id, owned, alumni]
   );
   const states = useMemo(() => Object.fromEntries(concepts.map((c) => [c.id, pegState(conceptState[c.id])])), [concepts, conceptState]);
   return { pegs, states };
@@ -171,13 +183,15 @@ function Legend() {
           </li>
         ))}
       </ul>
-      {owned.length > 0 && <p className="small">Installed: {owned.map((k) => ITEM_INFO[k].name).join(", ")}. Tap one to see what it does.</p>}
+      {owned.length > 0 && <p className="small">Installed: {owned.map((k) => `${ITEM_INFO[k.kind].name} T${k.tier}`).join(", ")}. Tap one to see what it does.</p>}
     </>
   );
 }
 
 export function OddsTable() {
   const calm = useGame((s) => s.settings.calm);
+  const stake = useGame((s) => (s.settings.calm ? 1 : s.run.stake));
+  const DEBT = stakeTable(stake).debt;
   const t = terms(calm);
   return (
     <table>
@@ -193,14 +207,21 @@ export function OddsTable() {
         {CONFS.map((c) => (
           <tr key={c}>
             <td>{CONF_LABEL[c]}</td>
-            <td className="mono">{BALLS[c]} ball{BALLS[c] > 1 ? "s" : ""}</td>
+            <td className="mono">+{GAIN[c]} {t.chips} + 1 ball</td>
             <td className="mono">
-              lose {PENALTY[c]} {PENALTY[c] === 1 ? t.chip : t.chips}
+              {DEBT[c] ? `+${DEBT[c]} debt` : "nothing"}
               {c === "certain" ? " + bomb" : ""}
             </td>
           </tr>
         ))}
       </tbody>
+      <tfoot>
+        <tr>
+          <td colSpan={3} className="small">
+            Debt never comes out of your {t.chips}. It is settled against the Ledger Pot on Exam Day. Your streak multiplies the gain and the debt alike, never the ball.
+          </td>
+        </tr>
+      </tfoot>
     </table>
   );
 }
@@ -373,7 +394,7 @@ function Hub({ reduced }: { reduced: boolean }) {
             <Counter label="DAYS TO EXAM" value={days} digits={2} />
           </div>
           <div className="row between small">
-            <strong>DEBT</strong>
+            <strong>EXAM LEDGER</strong>
             <span className="mono">{debt}% TO GO</span>
           </div>
           <div className="progress" role="progressbar" aria-valuenow={100 - debt} aria-valuemin={0} aria-valuemax={100} aria-label="Debt paid off">
@@ -382,14 +403,31 @@ function Hub({ reduced }: { reduced: boolean }) {
           <ul className="facts">
             <li>Weakest: {weakest.length ? weakest.join(", ") : "nothing tried yet"}</li>
             <li>Bombs: {bombs.length ? bombs.map(name).join(", ") : "none"}</li>
+            <li>Ledger debt: {g.debt} (never taken from your {t.chips})</li>
+            <li>
+              Ledger Pot: {g.pot}. Each bomb adds {5}. Defusing one (right at Pretty sure or Certain, a different question, at least one Shift later) pays half its share. Exam Day pays the rest by readiness.
+            </li>
             {mods.length > 0 && <li>Ready for next Shift: {mods.join(", ")}</li>}
           </ul>
+          <ReadinessOdds />
+          {g.meta.relics.includes("cartographer") && (
+            <p className="small mono">
+              CARTOGRAPHER: NEXT SHIFT OPENS ON {drawOffer(states, [], days, g.attempts.length).map(name).join(", ").toUpperCase()}
+            </p>
+          )}
+          {(g.meta.relics.length > 0 || g.run.stake > 1) && (
+            <p className="small">
+              {g.meta.relics.length > 0 && `Relics: ${g.meta.relics.map((r) => RELICS[r].name).join(", ")}. `}
+              {g.run.stake > 1 && !g.settings.calm && `Stake ${g.run.stake}: ${STAKES[g.run.stake]}`}
+            </p>
+          )}
         </Window>
         <Collector line={capHit ? LINES.cap : g.line || LINES.hub} />
+        {g.pot > 0 && <Collector line={LINES.pot(g.pot)} />}
         <div className="stack">
           {inProgress(g.session) ? (
             <button className="btn success big pulse-glow" onClick={g.resume}>
-              Resume {g.session.kind === "exam" ? "Exam Day" : g.session.kind === "defuse" ? "Defuser" : "Shift"}: Q{Math.min(g.session.answered + (g.session.pendingBalls ? 0 : 1), g.session.total)} of {g.session.total}
+              Resume {sessionName(g.session)}: Q{Math.min(g.session.answered + (g.session.pendingBalls ? 0 : 1), g.session.total)} of {g.session.total}
             </button>
           ) : (
             <button className="btn success big" onClick={g.startShift} disabled={capHit}>
@@ -401,10 +439,16 @@ function Hub({ reduced }: { reduced: boolean }) {
               Shop <span className="badge hot pulse-glow">HOT!</span>
             </button>
             <button className="btn" onClick={() => g.go("report")}>Report</button>
+            {auditDue(g) && !inProgress(g.session) && (
+              <button className="btn primary pulse-glow" onClick={g.startAudit} title="A boss round from your bombs and weak spots">
+                Collector&apos;s Audit
+              </button>
+            )}
             <button className="btn danger" onClick={g.startExam} disabled={g.shiftsDone < 1 || inProgress(g.session)} title={inProgress(g.session) ? "Finish what you started first" : g.shiftsDone < 1 ? "Play one Shift first" : ""}>
               Exam Day
             </button>
           </div>
+          {!inProgress(g.session) && <KenoPanel />}
           <p className="small">
             {g.shiftsDone} Shift{g.shiftsDone === 1 ? "" : "s"} played. {g.shiftsDone < 3 ? "Exam Day (a 10 question mock) works best after 3 Shifts." : "Ready for Exam Day when you are."} {t.Chips} only come from the board.
           </p>
@@ -416,6 +460,7 @@ function Hub({ reduced }: { reduced: boolean }) {
           <Legend />
         </Window>
         {peg ? <PegCard peg={peg} onClose={() => setPeg(null)} /> : <p className="small center">Tap a peg to see what it is.</p>}
+        <BingoCard />
       </section>
     </div>
   );
@@ -472,6 +517,7 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
   const t = terms(g.settings.calm);
   const exam = s.kind === "exam";
   const first = g.attempts.length === 0;
+  const debtOf = stakeTable(g.settings.calm ? 1 : g.run.stake).debt;
 
   useEffect(() => {
     setChosen(null);
@@ -494,7 +540,7 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
   }, [chosen, conf, g, s.eliminated]);
 
   if (!q || !concept) return null;
-  const header = exam ? `EXAM_DAY.EXE - Q${s.answered + 1} OF ${s.total}` : s.kind === "defuse" ? "DEFUSER.EXE" : `SHIFT_${g.shiftsDone + 1}.EXE - Q${s.answered + 1} OF ${s.total}`;
+  const header = s.kind === "audit" ? `COLLECTORS_AUDIT.EXE - Q${s.answered + 1} OF ${s.total}` : exam ? `EXAM_DAY.EXE - Q${s.answered + 1} OF ${s.total}` : s.kind === "defuse" ? "DEFUSER.EXE" : `SHIFT_${g.shiftsDone + 1}.EXE - Q${s.answered + 1} OF ${s.total}`;
 
   return (
     <div className="grid2 play">
@@ -523,13 +569,13 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
             {CONFS.map((c, i) => (
               <button key={c} role="radio" aria-checked={conf === c} className={`btn conf ${c}`} onClick={() => setConf(c)}>
                 <strong>{CONF_LABEL[c]}</strong>
-                <span className="mono">{exam ? `~${[40, 70, 90][i]}% sure` : `${BALLS[c]} ball${BALLS[c] > 1 ? "s" : ""} · lose ${PENALTY[c]}`}</span>
+                <span className="mono">{exam ? `~${[35, 67, 92][i]}% sure` : `+${GAIN[c]}${debtOf[c] ? ` · debt ${debtOf[c]}` : " · no debt"}`}</span>
               </button>
             ))}
           </div>
           {exam && <p className="small">Exam Day: no {t.chips} at stake. Your {t.bet}s feed the readiness report.</p>}
           {s.retrying && <p className="small">Second Chance: one option is out. Try again.</p>}
-          {!exam && g.streak >= 1 && <p className="small mono">STREAK {g.streak}: GET THIS RIGHT FOR CHIPS x{streakMultiplier(g.streak + 1)}</p>}
+          {!exam && <HandLine />}
           <button className="btn success big" disabled={!chosen || !conf} onClick={() => chosen && conf && g.answer(chosen, conf)}>
             Lock it in
           </button>
@@ -545,13 +591,39 @@ function QuestionScreen({ reduced }: { reduced: boolean }) {
   );
 }
 
+/** This Shift's Peg Hand and the multiplier the next answer plays at. */
+function HandLine() {
+  const g = useGame();
+  const s = g.session!;
+  const hand = pegHand(s.hand ?? [], g.concepts.length);
+  const m = answerMult(streakMultiplier(g.streak + 1), hand);
+  return (
+    <details className="small">
+      <summary className="mono">
+        {hand ? `PEG HAND: ${hand.name.toUpperCase()} x${hand.mult} · ` : ""}THIS ANSWER PLAYS AT x{m} (GAIN AND DEBT ALIKE)
+      </summary>
+      <p>
+        Chips x mult. Streak x{streakMultiplier(g.streak + 1)}
+        {hand ? ` times ${hand.name} x${hand.mult}` : ""}, capped at x{MULT_CAP}. Hands are built only from right answers this Shift:
+      </p>
+      <ul>
+        {HANDS.map((h) => (
+          <li key={h.name}>
+            {h.name} x{h.mult}: {h.rule}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /* ---------- Reveal: the answer on the left, drop your balls on the board on the right ---------- */
 
 function RevealScreen({ reduced }: { reduced: boolean }) {
   const g = useGame();
   const r = g.reveal;
   const s = g.session;
-  const [won, setWon] = useState<number | null>(null);
+  const [won, setWon] = useState<{ chips: number; skill: number; armed: string[]; feverFlat: boolean } | null>(null);
   const exam = s?.kind === "exam";
 
   useEffect(() => {
@@ -575,7 +647,7 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
   const droppable = !r.secondChance && !exam; // Shift and Defuser answers drop right here
   const kind = r.bombPlanted ? "bomb" : r.correct && !r.secondChance ? "right" : "wrong";
   const title = r.bombPlanted ? "BOMB_PLANTED.EXE" : r.correct ? "CORRECT.WAV" : "NOT_THIS_TIME.TXT";
-  const mult = s.streakMult ?? 1;
+  const mult = s.mult ?? s.streakMult ?? 1;
   const last = s.answered >= s.total;
 
   return (
@@ -616,18 +688,22 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
             </table>
           )}
           {r.secondChance && <p>No {t.chips} lost, no bomb, streak safe. Have another go.</p>}
+          {(r.potPaid ?? 0) > 0 && <p className="mono">LEDGER POT PAYS +{r.potPaid} {t.chips.toUpperCase()}</p>}
+          {r.bombWaiting && <p className="small">The bomb stays until your next Shift. Spaced retests stick better than same-day ones.</p>}
           <div className="row">
-            {!exam && r.correct && !r.secondChance && <Counter label="BALLS EARNED" value={r.balls} digits={2} />}
+            {!exam && r.correct && !r.secondChance && <Counter label={`+${t.Chips.toUpperCase()}`} value={r.chips} digits={2} />}
+            {!exam && r.correct && !r.secondChance && <Counter label="BONUS BALL" value={r.balls} digits={1} />}
             {!exam && r.correct && !r.secondChance && r.streak >= 2 && (
               <span className="counter streak pulse-glow" aria-label={`Streak ${r.streak}, chips times ${mult}`}>
                 <span className="lbl">STREAK {r.streak}</span>x{mult}
               </span>
             )}
           </div>
-          {!exam && r.chipPenalty > 0 && <p className="mono">LOSE {r.chipPenalty} {(r.chipPenalty === 1 ? t.chip : t.chips).toUpperCase()}</p>}
+          {!exam && r.debt > 0 && <p className="mono">+{r.debt} LEDGER DEBT{r.mult > 1 ? ` (x${r.mult})` : ""}. YOUR {t.Chips.toUpperCase()} ARE UNTOUCHED</p>}
           {!exam && !r.correct && !r.secondChance && r.lostStreak >= 2 && <p className="mono">STREAK OF {r.lostStreak} LOST</p>}
 
           <Collector line={r.bombPlanted ? LINES.bombPlanted(concept.name) : r.line} />
+          <MysteryFact fact={r.fact} />
 
           {!r.secondChance && (
             <>
@@ -645,24 +721,25 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
             </>
           )}
 
+          {!exam && <GoDeeper />}
           {!droppable ? (
             <button className={`btn big ${r.bombPlanted ? "danger" : "success"}`} onClick={g.continueReveal} autoFocus>
               {r.secondChance ? "Try again" : last ? "See my report" : "Next question"}
             </button>
           ) : won === null ? (
             <p className="notice">
-              → Drop your {s.pendingBalls} ball{s.pendingBalls === 1 ? "" : "s"} on the board: click a chute or press 1-7.
-              {mult > 1 ? ` Streak bonus: chips x${mult}!` : ""}
+              → Drop your bonus ball{s.pendingBalls === 1 ? "" : "s"} on the board: click a chute or press 1-7.
+              {mult > 1 ? ` Streak x${mult} is already in your answer payout. The ball is a bonus on top.` : ""}
             </p>
           ) : (
             <div className="row between dropdone">
               {s.pendingBalls > 0 && (
-                <span className="counter big" aria-label={`Plus ${Math.round(won * mult)} ${t.chips}`}>
+                <span className="counter big" aria-label={`Plus ${s.pendingChips + won.chips + (won.feverFlat ? FEVER_FLAT : 0)} ${t.chips}`}>
                   <span className="lbl">+{t.Chips.toUpperCase()}</span>
-                  {mult > 1 ? `${won}×${mult}=${Math.round(won * mult)}` : won}
+                  {s.pendingChips} + {won.chips + (won.feverFlat ? FEVER_FLAT : 0)} = {s.pendingChips + won.chips + (won.feverFlat ? FEVER_FLAT : 0)}
                 </span>
               )}
-              <button className={`btn big ${r.bombPlanted ? "danger" : "success"}`} onClick={() => g.finishDrop(won)} autoFocus>
+              <button className={`btn big ${r.bombPlanted ? "danger" : "success"}`} onClick={() => g.finishDrop(won.chips, won.skill, won.armed, won.feverFlat)} autoFocus>
                 {last ? "Finish" : "Next"}
               </button>
             </div>
@@ -674,35 +751,42 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
   );
 }
 
-function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (chips: number) => void }) {
+function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips: number; skill: number; armed: string[]; feverFlat: boolean }) => void }) {
   const g = useGame();
   const s = g.session!;
   const r = g.reveal;
   const { pegs, states } = usePegs();
-  const [hold, setHold] = useState<{ h: Hold; release: (m: number) => void } | null>(null);
-  const [mega, setMega] = useState<{ mult: number; value: number } | null>(null);
-  const megaTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [hold, setHold] = useState<{ h: Hold; release: (r: HoldResult) => void } | null>(null);
+  const [cheer, setCheer] = useState<{ level: 1 | 2 | 3; value: number } | null>(null);
+  const cheerTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const t = terms(g.settings.calm);
-  const chaos = !g.settings.calm; // Calm mode: popups auto-play, no strobe, no shake
+  const chaos = !g.settings.calm; // Calm mode: the wheel pays its average instantly, no cheers, no shake; quizzes still ask
   const sound = g.settings.sound && !g.settings.calm;
   const spark = r && (r.bombPlanted || r.bombDefused) ? [r.conceptId] : [];
   const { magnet, mega: megaMod, quake } = g.inventory;
-  const drop = useMemo(() => ({ balls: s.pendingBalls, seed: s.dropSeed, magnet, mega: megaMod, quake }), [s.pendingBalls, s.dropSeed, magnet, megaMod, quake]);
+  // Fever never plays as an animation in Calm mode or with reduced motion: you get a plain summary instead
+  const feverFlat = Boolean(s.fever) && (g.settings.calm || reduced);
+  const fever = Boolean(s.fever) && !feverFlat;
+  const balls = feverFlat ? s.pendingBalls - FEVER_BALLS : s.pendingBalls;
+  const streakMult = streakMultiplier(g.streak);
+  const wheelExtra = s.seal ? [SEAL_SEGMENT] : undefined; // Seal of Approval
+  const drop = useMemo(() => ({ balls, seed: s.dropSeed, magnet, mega: megaMod, quake, fever, streakMult, wheelExtra }), [balls, s.dropSeed, magnet, megaMod, quake, fever, streakMult, wheelExtra?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onMega = (mult: number, value: number) => {
-    setMega({ mult, value });
-    confetti(300);
-    sealDo("gyuu");
-    clearTimeout(megaTimer.current);
-    megaTimer.current = setTimeout(() => setMega(null), 1700);
-    if (reduced) return;
+  // sized to the payout: a small bonus gets a small cheer, only the biggest shakes
+  const onCheer = (level: 1 | 2 | 3, value: number) => {
+    setCheer({ level, value });
+    confetti([0, 60, 150, 300][level]);
+    if (level >= 2) sealDo("gyuu");
+    clearTimeout(cheerTimer.current);
+    cheerTimer.current = setTimeout(() => setCheer(null), [0, 900, 1300, 1700][level]);
+    if (reduced || level < 3) return;
     const html = document.documentElement;
     html.classList.remove("shake");
     void html.offsetWidth; // restart the animation on back-to-back hits
     html.classList.add("shake");
     setTimeout(() => html.classList.remove("shake"), 650);
   };
-  useEffect(() => () => clearTimeout(megaTimer.current), []);
+  useEffect(() => () => clearTimeout(cheerTimer.current), []);
 
   const active = [magnet && "MAGNET", megaMod && "MEGA BUCKET", quake && "EARTHQUAKE"].filter(Boolean) as string[];
 
@@ -723,35 +807,38 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (chips: numb
           calm={g.settings.calm}
           sound={sound}
           reducedMotion={reduced}
-          onHold={chaos ? (h, release) => setHold({ h, release }) : undefined}
-          onMega={chaos ? onMega : undefined}
-          onDone={(c) => {
+          onHold={(h, release) => setHold({ h, release })}
+          onCheer={chaos ? onCheer : undefined}
+          onDone={(chips, skill, armed) => {
             setHold(null);
-            onDone(c);
+            onDone({ chips, skill, armed, feverFlat });
           }}
           label={`Ball drop with ${s.pendingBalls} balls`}
         />
-        <p className="small">Solid +2, shaky +1, bomb −2. Centre buckets multiply more. Skip drops the rest down the middle.</p>
+        {fever && <p className="notice">FEVER! That was the last bomb on your board. {FEVER_BALLS} extra balls into five Fever buckets: x{FEVER_MULTIPLIERS.join(", x")}.</p>}
+        {feverFlat && <p className="notice">Fever round: the last bomb is gone. Summary: {FEVER_BALLS} extra balls at the average Fever bucket pay +{FEVER_FLAT} {t.chips}.</p>}
+        <p className="small">Bonus ball: solid +2, shaky +1, bomb −2. Hitting a bomb peg brings its retest up next, and the board multiplier rises as bomb pegs fall (x2 at 5 or fewer standing, x3 at 2 or fewer). Hit pegs dim for the rest of the drop. Skip drops the rest down the middle.</p>
       </Window>
       {hold && (
         <HoldModal
           key={hold.h.id}
           hold={hold.h}
           sound={sound}
-          onDone={(m) => {
-            hold.release(m);
+          reduced={reduced}
+          onDone={(r) => {
+            hold.release(r);
             setHold(null);
           }}
         />
       )}
-      {mega && <MegaOverlay mult={mega.mult} value={mega.value} chips={t.chips} />}
+      {cheer && <CheerOverlay level={cheer.level} value={cheer.value} chips={t.chips} />}
     </div>
   );
 }
 
 /* ---------- Shift summary ---------- */
 
-function Summary() {
+function Summary({ reduced }: { reduced: boolean }) {
   const g = useGame();
   const s = g.session;
   const { ready } = useDerived();
@@ -763,19 +850,28 @@ function Summary() {
   const name = (id: string) => g.concepts.find((c) => c.id === id)?.name ?? id;
   return (
     <section className="narrow">
-      <Window title={s.kind === "defuse" ? "DEFUSER_LOG.TXT" : "SHIFT_COMPLETE.TXT"}>
-        <h2 className="rainbow">{s.kind === "defuse" ? "Defuser done" : "Shift complete!"}</h2>
+      <Window title={s.kind === "defuse" ? "DEFUSER_LOG.TXT" : s.kind === "audit" ? "AUDIT_REPORT.TXT" : "SHIFT_COMPLETE.TXT"}>
+        <h2 className="rainbow">{s.kind === "defuse" ? "Defuser done" : s.kind === "audit" ? (s.correct >= AUDIT_CLEAR ? "Audit cleared!" : "Audit over") : "Shift complete!"}</h2>
+        {s.kind === "audit" && s.auditMod && <p className="small">Modifier: {AUDIT_MODS[s.auditMod]} Clear with {AUDIT_CLEAR} right.</p>}
         <Collector line={g.line} />
-        <table>
-          <tbody>
-            <tr><td>Right</td><td className="mono">{s.correct} of {s.answered}</td></tr>
-            <tr><td>From the board</td><td className="mono">+{s.chipsEarned} {t.chips}</td></tr>
-            {s.chipsLost > 0 && <tr><td>From {t.bet}s</td><td className="mono">-{s.chipsLost} {t.chips}</td></tr>}
-            <tr><td>Readiness (estimate)</td><td className="mono">{s.readinessBefore}% → {ready}%</td></tr>
-            {s.bombsPlanted.length > 0 && <tr><td>Bombs planted</td><td>{s.bombsPlanted.map(name).join(", ")}</td></tr>}
-            {s.bombsDefused.length > 0 && <tr><td>Bombs defused</td><td>{s.bombsDefused.map(name).join(", ")}</td></tr>}
-          </tbody>
-        </table>
+        <p className="small">Your Shift Report Card. Everything on it is already decided: scratch to read it, or reveal it all.</p>
+        <ScratchRows
+          instant={g.settings.calm || reduced}
+          rows={([
+            ["Right", `${s.correct} of ${s.answered}`],
+            ["Earned", `+${s.chipsEarned} ${t.chips}`],
+            (s.potPaid ?? 0) > 0 && ["From the Ledger Pot", `+${s.potPaid}`],
+            (s.calBonus ?? 0) > 0 && ["Calibration bonus", `+${s.calBonus} (3 per grade point)`],
+            (s.bingoBonus ?? 0) > 0 && ["Concept Bingo lines", `+${s.bingoBonus}`],
+            s.keno?.length && ["Calibration Keno", `+${s.kenoChips ?? 0} ${t.chips}, +${s.kenoDebt ?? 0} debt`],
+            (s.interest ?? 0) > 0 && ["Interest", `+${s.interest} (1 per 10 held, up to 3)`],
+            (s.debtAdded ?? 0) > 0 && ["Ledger debt added", `+${s.debtAdded} (total ${g.debt})`],
+            ["Readiness (estimate)", `${s.readinessBefore}% → ${ready}%`],
+            s.bombsPlanted.length > 0 && ["Bombs planted", s.bombsPlanted.map(name).join(", ")],
+            s.bombsDefused.length > 0 && ["Bombs defused", s.bombsDefused.map(name).join(", ")],
+          ].filter(Boolean) as [string, string][])}
+        />
+        <SkillMeter skill={s.skillChips ?? 0} chance={s.chanceChips ?? 0} />
         <hr />
         <div className="row">
           <button className="btn primary" onClick={() => g.go("shop")} autoFocus>Shop</button>
@@ -784,6 +880,24 @@ function Summary() {
         </div>
       </Window>
     </section>
+  );
+}
+
+function SkillMeter({ skill, chance }: { skill: number; chance: number }) {
+  const share = Math.round(skillShare(skill, chance) * 100);
+  return (
+    <div className="stack">
+      <div className="row between small">
+        <strong>SKILL SHARE</strong>
+        <span className="mono">{share}% FROM KNOWING · {100 - share}% FROM CHANCE</span>
+      </div>
+      <div className="progress" role="progressbar" aria-valuenow={share} aria-valuemin={0} aria-valuemax={100} aria-label="Share of income from correct answers">
+        <div style={{ width: `${share}%` }} />
+      </div>
+      <p className="small">
+        {skill} from correct answers and calibration, {chance} from buckets, the wheel and other specials. We aim for at least {SKILL_TARGET * 100}% from knowing.
+      </p>
+    </div>
   );
 }
 
@@ -796,7 +910,7 @@ function SettingsScreen() {
     <section className="narrow">
       <Window title="CONTROL_PANEL.EXE">
         <div className="stack">
-          <Toggle label="Calm mode" hint="No popups, strobes, shakes or sound, whatever skin you picked in the Shop. 'Points' instead of chips. Same mechanics." on={s.calm} set={(v) => g.updateSettings({ calm: v })} />
+          <Toggle label="Calm mode" hint="No strobes, shakes or sound, whatever skin you picked in the Shop. Chance devices pay their average instantly. Stakes are off. 'Points' instead of chips." on={s.calm} set={(v) => g.updateSettings({ calm: v })} />
           <Toggle label="Sound" hint="Ticks, boings and the odd arpeggio." on={s.sound} set={(v) => g.updateSettings({ sound: v })} />
           <Toggle label="Reduced motion" hint="Drops resolve instantly. No shake." on={s.reducedMotion} set={(v) => g.updateSettings({ reducedMotion: v })} />
           <label className="row between">
@@ -808,12 +922,12 @@ function SettingsScreen() {
       <Window title="ODDS.TXT">
         <OddsTable />
         <p className="small">
-          Guess is the best {terms(s.calm).bet} below about 50% sure, Pretty sure from 50% to 75%, Certain above 75%. Honest confidence wins. Board: solid +2, shaky +1, not tried 0, bomb −2. Buckets x0.5 to x3. Shop pegs show their odds before you buy. Nothing random is sold for money.
+          Guess is the best {terms(s.calm).bet} below {Math.round(breakEven("guess", "pretty") * 100)}% sure, Pretty sure from there to about {Math.round(breakEven("pretty", "certain") * 100)}%, Certain above that. Every right answer also drops one bonus ball, whatever you bet, so the break-evens stay put. Honest confidence wins. Board: solid +2, shaky +1, not tried 0, bomb −2. Buckets x0.5 to x3. Shop pegs show their odds before you buy. Nothing random is sold for money.
         </p>
       </Window>
       <div className="row">
         <button className="btn" onClick={() => g.go("hub")}>Back</button>
-        <button className="btn danger" onClick={() => confirm("Start a new unit? This clears your progress on this one.") && g.reset()}>
+        <button className="btn danger" onClick={() => confirm("Start a new unit? This clears your progress on this one. Mastery Marks, relics and achievements are kept.") && g.reset()}>
           New unit
         </button>
       </div>

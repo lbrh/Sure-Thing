@@ -287,34 +287,37 @@ details summary { cursor: pointer; font-weight: 700; min-height: 32px; text-tran
 .calchart .dot.pretty { fill: var(--accent); }
 .calchart .dot.certain { fill: var(--red); }
 
-/* ---------- popups: ROULETTE.EXE, BLACKJACK.EXE, POPQUIZ.EXE ---------- */
+/* ---------- popups: PRIZE_WHEEL.EXE, 21_QUIZ.EXE, POPQUIZ.EXE (game show, not casino) ---------- */
 .modal-scrim { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: repeating-linear-gradient(45deg, rgba(0, 0, 128, 0.35) 0 2px, transparent 2px 4px); }
 .modal-scrim .win { width: min(460px, 100%); margin: 0; max-height: 100%; overflow: auto; }
 .wheel-wrap { position: relative; width: 240px; height: 240px; margin: 14px auto 8px; }
-.wheel { width: 100%; height: 100%; border-radius: 50%; border: 4px solid #000; transition: transform 2.4s cubic-bezier(0.15, 0.8, 0.2, 1); }
+/* light-bulb rim, like a TV game show wheel */
+.wheel { width: 100%; height: 100%; border-radius: 50%; border: 8px dotted var(--yellow); outline: 4px solid #000; transition: transform 2.4s cubic-bezier(0.15, 0.8, 0.2, 1); }
 .wheel span { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
-.wheel span b { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-family: var(--font-head); font-size: 0.85rem; color: #fff; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000; }
+.wheel span b { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-family: var(--font-head); font-size: 1rem; color: #fff; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000; }
 .pointer { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 24px solid var(--yellow); filter: drop-shadow(2px 2px 0 #000); z-index: 2; }
 .hub-dot { position: absolute; inset: 42%; background: var(--yellow); border: 3px solid #000; border-radius: 50%; }
-.cards { display: flex; gap: 6px; flex-wrap: wrap; min-height: 74px; }
-.card-face {
-  width: 50px; height: 70px; background: #fff; border: 2px solid; border-color: var(--out-colors); box-shadow: var(--out-shadow), 0 0 0 1px #000;
-  display: grid; place-items: center; font-family: var(--font-head); font-size: 1.1rem;
-}
-.card-face.red { color: var(--red); }
-.card-face.back { background: repeating-linear-gradient(45deg, var(--navy) 0 4px, var(--title-end) 4px 8px); }
+.q21-hand { display: flex; gap: 6px; flex-wrap: wrap; min-height: 40px; align-items: center; }
+.q21-chip { min-width: 40px; padding: 4px 8px; background: #000; color: var(--yellow); border: 2px solid; border-color: var(--out-colors); font-family: var(--font-mono); font-weight: 700; text-align: center; }
 .quiz-timer { margin: 6px 0 10px; }
 .quiz-timer div { background: repeating-linear-gradient(90deg, #ff0000 0 10px, transparent 10px 12px); }
 .result-big { font-family: var(--font-head); font-size: 2rem; text-align: center; text-shadow: 2px 2px 0 #000; margin: 6px 0; }
 
-/* ---------- MEGA HIT ---------- */
-.mega { position: fixed; inset: 0; z-index: 60; pointer-events: none; display: grid; place-items: center; animation: mega-bg 2s steps(1) infinite; /* 4 colours over 2s: 2 flashes/s, under the WCAG 3/s ceiling */ }
-.mega-text { font-family: var(--font-head); font-size: clamp(3rem, 14vw, 9rem); line-height: 0.9; text-align: center; transform: rotate(-6deg); -webkit-text-stroke: 3px #000; text-shadow: 6px 6px 0 #000; animation: rainbow 1s linear infinite, mega-pop 0.4s ease-out; }
-.mega-text small { display: block; font-size: 0.4em; }
-@keyframes mega-bg {
-  0% { background: rgba(255, 0, 255, 0.45); } 25% { background: rgba(0, 255, 255, 0.45); }
-  50% { background: rgba(255, 255, 0, 0.45); } 75% { background: rgba(0, 255, 0, 0.45); }
-}
+/* ---------- Concept Bingo, Keno, Shift Report Card ---------- */
+.bingo { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #000; border: 2px solid; border-color: var(--in-colors); }
+.bingo-cell { min-height: 48px; padding: 2px; background: var(--white); font-size: 0.65rem; line-height: 1.1; display: grid; place-items: center; text-align: center; overflow: hidden; }
+.bingo-cell.on { background: var(--yellow); font-weight: 700; }
+.keno { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; }
+.keno-cell { display: flex; gap: 6px; align-items: center; min-height: 32px; font-size: 0.85rem; }
+.scratch { min-width: 120px; min-height: 28px; border: 2px solid; border-color: var(--out-colors); background: repeating-linear-gradient(45deg, #808080 0 4px, #c0c0c0 4px 8px); font-family: var(--font-mono); font-weight: 700; cursor: pointer; }
+
+/* ---------- Cheer: proportional, no strobing background ---------- */
+.cheer { position: fixed; inset: 0; z-index: 60; pointer-events: none; display: grid; place-items: center; }
+.cheer-text { font-family: var(--font-head); line-height: 0.9; text-align: center; transform: rotate(-6deg); -webkit-text-stroke: 2px #000; text-shadow: 4px 4px 0 #000; animation: rainbow 1s linear infinite, mega-pop 0.4s ease-out; }
+.cheer.lvl1 .cheer-text { font-size: clamp(1.6rem, 6vw, 3rem); }
+.cheer.lvl2 .cheer-text { font-size: clamp(2.4rem, 10vw, 6rem); }
+.cheer.lvl3 .cheer-text { font-size: clamp(3rem, 14vw, 9rem); }
+.cheer-text small { display: block; font-size: 0.4em; }
 @keyframes mega-pop { from { transform: rotate(-6deg) scale(0.2); } to { transform: rotate(-6deg) scale(1); } }
 html.shake .shell { animation: shake 0.6s steps(12); }
 @keyframes shake {
@@ -462,10 +465,9 @@ html[data-calm="1"] .squares { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .rainbow { animation: none; color: var(--red); }
   .marquee-track { animation: none; padding-left: 8px; }
-  .pulse-glow, .blink, .mega, .mega-text, .quaking .board, html.shake .shell,
+  .pulse-glow, .blink, .cheer-text, .quaking .board, html.shake .shell,
   html[data-chaos="1"] body, .gif, .float3d, .dvd, .seek i, .bars i, .popup,
   .seal-wobble, .seal .flip-near, .seal .flip-far, .seal-belly, .seal-squish, .seal-head { animation: none !important; }
-  .mega { background: rgba(255, 255, 0, 0.5); }
-  .mega-text { color: var(--red); }
+  .cheer-text { color: var(--red); }
   .wheel { transition: none; }
 }

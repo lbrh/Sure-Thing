@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useDerived, useGame } from "@/lib/store";
 import { calibration, calibrationByLevel, mastery, pegState, tonightsPlan, type PegState } from "@/lib/engine";
-import { CONF_LABEL } from "@/lib/copy";
+import { CONF_LABEL, LINES } from "@/lib/copy";
+import { brier, calibrationGap, calibrationGrade, CAL_WINDOW } from "@/lib/economy";
 import { Counter, Window } from "./ui";
+import { Achievements, Journal } from "./Meta";
 
 const FLAG: Record<PegState, string> = { solid: "Solid", shaky: "Shaky", cold: "Not tried", bomb: "BOMB" };
 
@@ -13,6 +15,9 @@ export default function Report() {
   const { ready, days, states } = useDerived();
   const [copied, setCopied] = useState(false);
   const cal = calibration(g.attempts);
+  const recentGap = calibrationGap(g.attempts);
+  const grade = calibrationGrade(recentGap);
+  const brierAll = brier(g.attempts);
   const name = (id: string) => g.concepts.find((c) => c.id === id)?.name ?? id;
   const sureWrong = states.filter((s) => s.confidentWrong > 0).sort((a, b) => b.confidentWrong - a.confidentWrong);
   const plan = tonightsPlan(states, days);
@@ -40,6 +45,19 @@ export default function Report() {
           <Counter label="ESTIMATE %" value={ready} digits={3} big />
         </div>
         <p className="mono">CONFIDENCE GAP: {gapText.toUpperCase()}</p>
+        <p className="mono">
+          CALIBRATION GRADE {grade}/3
+          {recentGap !== null && ` (GAP ${recentGap.toFixed(1)} PTS OVER LAST ${Math.min(CAL_WINDOW, g.attempts.length)})`}
+          {brierAll !== null && ` · BRIER ${brierAll.toFixed(2)} (LOWER IS BETTER)`}
+        </p>
+        <p className="small">Grade 3: within 5 points. 2: within 10. 1: within 15. Guess counts as 35% sure, Pretty sure 67%, Certain 92%.</p>
+        <p className="mono">LEDGER DEBT {g.debt} · POT {g.pot}</p>
+        {g.exam?.potPaid !== undefined && (
+          <p className="mono">
+            EXAM DAY LEDGER: EARNED {g.exam.earned ?? 0} − DEBT {g.exam.debt ?? 0} = NET {(g.exam.earned ?? 0) - (g.exam.debt ?? 0)} · POT PAID {g.exam.potPaid}
+          </p>
+        )}
+        {g.exam?.potPaid !== undefined && <p className="note">“{LINES.examPot(g.exam.potPaid, g.exam.debt ?? 0)}”</p>}
         <p className="small">
           Based on {g.attempts.length} answer{g.attempts.length === 1 ? "" : "s"}
           {g.exam ? `, including Exam Day (${g.exam.correct}/${g.exam.total})` : ""}. An estimate to guide revision, not a grade prediction.
@@ -87,11 +105,28 @@ export default function Report() {
               ))}
             </ol>
             <div className="row">
-              <button className="btn success" onClick={g.startShift}>Start tonight&apos;s Shift</button>
+              {g.exam ? (
+                <button className="btn success" onClick={g.finishRun}>Finish this unit: Legacy Draft</button>
+              ) : (
+                <button className="btn success" onClick={g.startShift}>Start tonight&apos;s Shift</button>
+              )}
               <button className="btn" onClick={share}>{copied ? "Copied" : "Share"}</button>
               <button className="btn" onClick={() => g.go("hub")}>Hub</button>
             </div>
           </Window>
+          {g.facts.length > 0 && (
+            <Window title="MYSTERY_FACTS.TXT" body="note">
+              <ul>
+                {g.facts.map((f, i) => (
+                  <li key={i}>
+                    <strong>{name(f.conceptId)}:</strong> {f.text}
+                  </li>
+                ))}
+              </ul>
+            </Window>
+          )}
+          <Journal />
+          <Achievements />
           <Window title="CALIBRATION.GIF">
             <details>
               <summary>Calibration chart</summary>

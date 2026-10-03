@@ -3,26 +3,30 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
-  betOutcome, daysUntil, drawOffer, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
+  daysUntil, drawOffer, hashString, pegState, rng, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
   type Attempt, type Concept, type ConceptState, type Confidence, type ExamResult, type OptionId, type Question,
 } from "./engine";
-import { LINES } from "./copy";
-import type { SpecialKind } from "./board";
+import { LINES, STORY, type StoryId } from "./copy";
+import {
+  answerMult, betOutcome, bingoCard, bingoLines, bingoMarked, BINGO_LINE, DEEPER_CHIPS, factUnlocked, kenoScore, calibrationBonus, pegHand, type HandCard, defusePayout, examPotPayout, POT_PER_BOMB, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
+  ACHIEVEMENTS, AUDIT_CLEAR, AUDIT_LENGTH, AUDIT_MODS, AUDIT_POT_SHARE, auditEvery, draftOffers, draftRerollCost, masteryMarks, MAX_RELICS, MAX_STAKE, RELIC_COST,
+  secondChanceMax, stakeHas, stakeTable, type AchievementId, type AuditMod, type RelicId,
+  type Item, type PegKind, type PriceCtx,
+} from "./economy";
+import { FEVER_BALLS, FEVER_FLAT, type OwnedPeg, type SpecialKind } from "./board";
 
-export type Screen = "setup" | "intro" | "hub" | "draw" | "question" | "reveal" | "board" | "summary" | "shop" | "report" | "settings";
-export type SessionKind = "shift" | "defuse" | "exam";
+export type Screen = "setup" | "intro" | "hub" | "draw" | "question" | "reveal" | "board" | "summary" | "shop" | "report" | "settings" | "draft";
+export type SessionKind = "shift" | "defuse" | "exam" | "audit";
 export type ShiftMod = "magnet" | "mega" | "quake";
-export type ShopItem = "secondChance" | "defuser" | ShiftMod | SpecialKind;
+export type ShopItem = Item; // everything for sale (never the Alumni peg)
 
 export const SHIFT_LENGTH = 8;
 export const EXAM_LENGTH = 10;
 export const START_CHIPS = 5;
-export const PRICES: Record<ShopItem, number> = {
-  secondChance: 8, defuser: 10, magnet: 15, mega: 22, quake: 6,
-  roulette: 18, blackjack: 20, quiz: 12, splitter: 14, blackhole: 16, bumper: 8,
-};
+/** Pegs renamed by the game-show reskin, for old saves. */
+const RENAMED: Record<string, SpecialKind> = { roulette: "wheel", blackjack: "quiz21" };
 export const SHIFT_MODS: ShiftMod[] = ["magnet", "mega", "quake"];
-export const SPECIALS: SpecialKind[] = ["roulette", "blackjack", "quiz", "splitter", "blackhole", "bumper"];
+export const SPECIALS: PegKind[] = ["wheel", "quiz21", "quiz", "splitter", "blackhole", "bumper"];
 
 export interface Unit {
   id: string;
@@ -37,24 +41,42 @@ export interface Session {
   answered: number;
   recent: string[];
   offer: string[];
-  plan: string[]; // exam concept order
+  plan: string[]; // exam and audit concept order
+  auditMod?: AuditMod; // the Collector's Audit's one visible modifier
+  seal?: boolean; // Seal of Approval fired this Shift: an extra wheel segment
   conceptId?: string;
   questionId?: string;
   shownAt?: number;
   retrying: boolean;
   eliminated: OptionId[];
   pendingBalls: number;
+  pendingChips: number; // the bet payout, paid with the drop
   dropSeed: number;
   chipsEarned: number;
-  chipsLost: number;
+  skillChips: number; // from correct answers and calibration
+  chanceChips: number; // from buckets, the wheel and other specials
+  debtAdded: number;
+  fever?: boolean; // the waiting drop is a Fever round
+  hand?: HandCard[]; // this Shift's correct answers, for Peg Hands
+  keno?: string[]; // Keno marks locked in when the Shift started
+  kenoChips?: number;
+  kenoDebt?: number;
+  bingoBonus?: number;
+  feverChips?: number;
+  calBonus?: number; // paid at the end of a Shift
+  interest?: number;
+  potPaid?: number; // Audit payout
   bombsPlanted: string[];
   bombsDefused: string[];
   readinessBefore: number;
   correct: number;
-  streakMult: number; // chip multiplier earned by the answer whose balls are waiting to drop
+  mult: number; // multiplier of the answer whose drop is waiting (streak, later Peg Hand)
+  streakMult?: number; // older saves
   finished?: boolean; // reached the summary
   resume?: Screen; // where to pick up if you left mid-session
 }
+
+export const sessionName = (s: Session) => ({ exam: "Exam Day", defuse: "Defuser", audit: "Collector's Audit", shift: "Shift" })[s.kind];
 
 const PLAY_SCREENS: Screen[] = ["draw", "question", "reveal", "board"];
 /** A Shift, Defuser or Exam Day you've started but not finished (you may have wandered off to the Shop). */
@@ -67,9 +89,16 @@ export interface Reveal {
   confidence: Confidence;
   correct: boolean;
   balls: number;
-  chipPenalty: number;
+  chips: number; // bet payout, before the board
+  debt: number; // Ledger debt added
+  mult: number;
   bombPlanted: boolean;
   bombDefused: boolean;
+  potPaid?: number; // Ledger Pot share paid for this defuse
+  fever?: boolean; // that was the last bomb on the board
+  fact?: string; // Mystery Fact unlocked by a right Certain answer
+  deeper?: { questionId: string; chosen?: OptionId; correct?: boolean }; // Go Deeper follow-up
+  bombWaiting?: boolean; // right on a bomb that hasn't waited a Shift yet
   secondChance: boolean;
   line: string;
   streak: number; // correct answers in a row, including this one
@@ -86,14 +115,52 @@ export interface Settings {
   reducedMotion: boolean;
 }
 
+/** Between-runs progress. Survives "New unit": only the run is cleared. */
+export interface Meta {
+  marks: number; // Mastery Marks to spend
+  marksEarned: number;
+  relics: RelicId[]; // at most 3
+  keptPeg: SpecialKind | null; // carried into the next unit at copy 1
+  stake: number; // chosen for the next unit (1 = standard)
+  stakeUnlocked: number;
+  alumni: { concept: Concept; questions: Question[] }[]; // weak concepts from earlier units
+  achievements: AchievementId[];
+  story: StoryId[];
+  defusedTotal: number;
+  runs: number; // units finished
+  draft: { offers: RelicId[]; rerolls: number; gained: number } | null; // pending Legacy Draft
+}
+
+export const initialMeta: Meta = {
+  marks: 0, marksEarned: 0, relics: [], keptPeg: null, stake: 1, stakeUnlocked: 1, alumni: [], achievements: [], story: [], defusedTotal: 0, runs: 0, draft: null,
+};
+
+/** The run: one unit, ending at Exam Day and the Readiness Report. */
+export interface Run {
+  start: string; // YYYY-MM-DD
+  stake: number; // in force this run (1 in Calm mode)
+  auditsDone: number;
+  defused: number; // bombs defused this run
+}
+
 interface Data {
+  meta: Meta;
+  run: Run;
   unit: Unit | null;
   concepts: Concept[];
   questions: Question[];
   conceptState: Record<string, ConceptState>;
   attempts: Attempt[];
   chips: number;
-  inventory: { secondChance: number; magnet: boolean; mega: boolean; quake: boolean; pegs: SpecialKind[] };
+  debt: number; // Ledger debt: no floor, never comes out of chips
+  pot: number; // Ledger Pot: +5 per bomb planted, paid out by defusing and on Exam Day
+  bombLedger: Record<string, BombEntry>;
+  armed: string[]; // bomb concepts a ball hit: their retest leads the next Draw
+  kenoMarks: string[]; // concepts you expect to get right next Shift (Calibration Keno)
+  facts: { conceptId: string; text: string }[]; // Mystery Facts unlocked
+  bingoPaid: number; // Concept Bingo lines already paid
+  inventory: { secondChance: number; magnet: boolean; mega: boolean; quake: boolean; pegs: OwnedPeg[] };
+  shop: ShopState;
   settings: Settings;
   shiftsDone: number;
   shiftLog: { date: string; count: number };
@@ -106,7 +173,32 @@ interface Data {
   line: string;
 }
 
+/** A planted bomb's share of the pot, and when and where it was planted. */
+export interface BombEntry {
+  share: number;
+  shift: number; // shiftsDone when planted; defusable once a later Shift starts
+  questionId: string;
+}
+
+export interface ShopState {
+  boughtThisRun: Partial<Record<ShopItem, number>>;
+  usesThisShift: Partial<Record<ShopItem, number>>;
+  rerolls: number; // this Shift
+  shiftIncome: number[]; // chips earned per finished Shift, for the income index
+}
+
 interface Actions {
+  startAudit(): void;
+  finishRun(): void;
+  draftPick(relic: RelicId, replace?: RelicId): void;
+  draftReroll(): void;
+  keepPeg(kind: SpecialKind | null): void;
+  setStake(stake: number): void;
+  newUnit(): void;
+  reroll(): void;
+  toggleKeno(conceptId: string): void;
+  goDeeper(): void;
+  answerDeeper(chosen: OptionId): void;
   setup(unit: Unit, concepts: Concept[], questions: Question[]): void;
   go(screen: Screen): void;
   startShift(): void;
@@ -115,7 +207,7 @@ interface Actions {
   choose(conceptId: string): void;
   answer(chosen: OptionId, confidence: Confidence): void;
   continueReveal(): void;
-  finishDrop(chips: number): void;
+  finishDrop(chips: number, skill?: number, armed?: string[], feverFlat?: boolean): void;
   buy(item: ShopItem, conceptId?: string): void;
   flag(questionId: string): void;
   updateSettings(s: Partial<Settings>): void;
@@ -125,13 +217,23 @@ interface Actions {
 const today = () => new Date().toISOString().slice(0, 10);
 
 const initial: Data = {
+  meta: initialMeta,
+  run: { start: "", stake: 1, auditsDone: 0, defused: 0 },
   unit: null,
   concepts: [],
   questions: [],
   conceptState: {},
   attempts: [],
   chips: START_CHIPS,
+  debt: 0,
+  pot: 0,
+  bombLedger: {},
+  armed: [],
+  kenoMarks: [],
+  facts: [],
+  bingoPaid: 0,
   inventory: { secondChance: 0, magnet: false, mega: false, quake: false, pegs: [] },
+  shop: { boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] },
   settings: { skin: "retro", calm: false, dailyCap: 6, sound: true, reducedMotion: false },
   shiftsDone: 0,
   shiftLog: { date: "", count: 0 },
@@ -152,33 +254,98 @@ export const useGame = create<Data & Actions>()(
       const ready = () => readiness(states(), get().exam);
 
       const newSession = (kind: SessionKind, total: number, plan: string[] = []): Session => ({
-        kind, total, plan, answered: 0, recent: [], offer: [], retrying: false, eliminated: [], pendingBalls: 0,
-        dropSeed: 0, chipsEarned: 0, chipsLost: 0, bombsPlanted: [], bombsDefused: [], readinessBefore: ready(), correct: 0, streakMult: 1,
+        kind, total, plan, answered: 0, recent: [], offer: [], retrying: false, eliminated: [], pendingBalls: 0, pendingChips: 0,
+        dropSeed: 0, chipsEarned: 0, skillChips: 0, chanceChips: 0, debtAdded: 0, bombsPlanted: [], bombsDefused: [], readinessBefore: ready(), correct: 0, mult: 1,
       });
+
+      const relic = (r: RelicId) => get().meta.relics.includes(r);
+      const stake = () => (get().settings.calm ? 1 : get().run.stake); // Stakes are off in Calm mode
+      /** Unlock a Collector story line once, and say it. */
+      const story = (id: StoryId) => {
+        if (get().meta.story.includes(id)) return;
+        set((s) => ({ meta: { ...s.meta, story: [...s.meta.story, id] }, line: STORY[id] }));
+      };
+      const achieve = () => {
+        const s = get();
+        const got = new Set(s.meta.achievements);
+        const gap = calibrationGap(s.attempts);
+        if (s.attempts.length >= 20 && gap !== null && gap <= 5) got.add("calibrated20");
+        if (s.meta.defusedTotal >= 5) got.add("defused5");
+        if (bingoLines(bingoCard(s.concepts.map((c) => c.id), hashString(s.unit?.id ?? "")), bingoMarked(s.attempts)) >= 12) got.add("fullBingo");
+        if (s.exam && s.exam.total > 0 && s.exam.correct / s.exam.total > 0.8 && stake() >= 3) got.add("stake3Exam80");
+        if (got.size > s.meta.achievements.length) set({ meta: { ...s.meta, achievements: (Object.keys(ACHIEVEMENTS) as AchievementId[]).filter((a) => got.has(a)) } });
+      };
 
       const showDraw = (session: Session) => {
         const offer = drawOffer(states(), session.recent, days(), get().attempts.length);
+        // a bomb peg a ball hit arms its retest: it takes the last slot unless it was just asked
+        const armed = get().armed.find((c) => get().conceptState[c]?.bombActive && !offer.includes(c) && !session.recent.slice(-2).includes(c));
+        if (armed) offer[offer.length - 1] = armed;
         set({ session: { ...session, offer }, screen: "draw" });
       };
 
       const endSession = (session: Session) => {
         if (session.kind === "exam") {
-          set({ exam: { correct: session.correct, total: session.answered, at: new Date().toISOString() }, session: null, screen: "report" });
+          const exam = { correct: session.correct, total: session.answered, at: new Date().toISOString() };
+          set((s) => {
+            // Exam Day pays out the rest of the pot by readiness, settled against debt
+            const earned = s.shop.shiftIncome.reduce((a, b) => a + b, 0);
+            const potPaid = examPotPayout(s.pot, readiness(states(), exam), earned, s.debt);
+            return { exam: { ...exam, potPaid, debt: s.debt, earned }, chips: s.chips + potPaid, pot: 0, bombLedger: {}, session: null, screen: "report" };
+          });
+          const pct = exam.total ? exam.correct / exam.total : 0;
+          if (pct < 0.5) story("badExam"); // kind words, not a telling-off
+          else if (pct >= 0.8) story("goodExam");
+          achieve();
+          return;
+        }
+        if (session.kind === "audit") {
+          // clearing the Collector's Audit pays a share of the Ledger Pot and moves the story on
+          const cleared = session.correct >= AUDIT_CLEAR;
+          set((s) => {
+            const paid = cleared ? Math.round(s.pot * AUDIT_POT_SHARE) : 0;
+            return {
+              chips: s.chips + paid,
+              pot: s.pot - paid,
+              run: { ...s.run, auditsDone: s.run.auditsDone + 1 },
+              session: { ...session, finished: true, potPaid: paid, skillChips: (session.skillChips ?? 0) + paid, chipsEarned: session.chipsEarned + paid },
+              screen: "summary",
+              line: cleared ? LINES.auditCleared(paid) : LINES.auditMissed,
+            };
+          });
+          if (cleared) story("auditCleared");
           return;
         }
         const drop = Math.max(0, ready() - session.readinessBefore);
-        set((s) => ({
-          session: { ...session, finished: true },
-          screen: "summary",
-          line: LINES.endShift(drop),
-          shiftsDone: s.shiftsDone + (session.kind === "shift" ? 1 : 0),
-          inventory: session.kind === "shift" ? { ...s.inventory, magnet: false, mega: false, quake: false } : s.inventory,
-        }));
+        // calibration pays: a Shift ends with 3 chips per calibration grade point (last 20 answers)
+        const calBonus = session.kind === "shift" ? calibrationBonus(calibrationGrade(calibrationGap(get().attempts))) : 0;
+        const shift = session.kind === "shift";
+        set((s) => {
+          // Concept Bingo lines completed since the last payout, and Calibration Keno: both skill income
+          const lines = bingoLines(bingoCard(s.concepts.map((c) => c.id), hashString(s.unit?.id ?? "")), bingoMarked(s.attempts));
+          const bingoBonus = shift ? Math.max(0, lines - s.bingoPaid) * BINGO_LINE : 0;
+          const keno = shift ? (session.kenoChips ?? 0) : 0;
+          const skill = calBonus + bingoBonus + keno;
+          // interest: +1 per 10 chips held at the end of a Shift, capped at +3
+          const paid = shift ? interest(s.chips + skill) : 0;
+          return {
+            chips: s.chips + skill + paid,
+            debt: s.debt + (shift ? (session.kenoDebt ?? 0) : 0),
+            bingoPaid: shift ? Math.max(s.bingoPaid, lines) : s.bingoPaid,
+            session: { ...session, finished: true, calBonus, bingoBonus, interest: paid, skillChips: (session.skillChips ?? 0) + skill, chipsEarned: session.chipsEarned + skill },
+            screen: "summary",
+            line: LINES.endShift(drop),
+            shiftsDone: s.shiftsDone + (shift ? 1 : 0),
+            inventory: shift ? { ...s.inventory, magnet: false, mega: false, quake: false } : s.inventory,
+            shop: shift ? { ...s.shop, usesThisShift: {}, rerolls: 0, shiftIncome: [...s.shop.shiftIncome, session.chipsEarned + skill] } : s.shop,
+          };
+        });
+        if (shift) achieve();
       };
 
       const next = (session: Session) => {
         if (session.answered >= session.total) return endSession(session);
-        if (session.kind === "exam") {
+        if (session.kind === "exam" || session.kind === "audit") {
           set({ session });
           return get().choose(session.plan[session.answered]);
         }
@@ -190,13 +357,20 @@ export const useGame = create<Data & Actions>()(
 
         setup(unit, concepts, questions) {
           const now = new Date();
+          const { meta, settings } = get();
+          // alumni concepts from earlier units ride along: their questions feed the rare Alumni peg (and Exam Day at Stake 5)
+          const alumni = meta.alumni.filter((a) => !concepts.some((c) => c.id === a.concept.id));
           set({
             ...initial,
-            settings: get().settings,
+            settings,
+            meta: { ...meta, keptPeg: null, draft: null },
+            run: { start: today(), stake: settings.calm ? 1 : meta.stake, auditsDone: 0, defused: 0 },
             unit,
             concepts,
-            questions,
+            questions: [...questions, ...alumni.flatMap((a) => a.questions)],
             conceptState: Object.fromEntries(concepts.map((c) => [c.id, newConceptState(c.id, now)])),
+            pot: meta.relics.includes("oldLedger") ? 10 : 0,
+            inventory: { ...initial.inventory, pegs: meta.keptPeg ? [{ kind: meta.keptPeg, tier: 1 }] : [] },
             screen: "intro",
             line: LINES.setup(unit.name, daysUntil(unit.examDate)),
           });
@@ -224,13 +398,17 @@ export const useGame = create<Data & Actions>()(
             set({ line: LINES.cap, screen: "hub" });
             return;
           }
-          set({ shiftLog: { ...log, count: log.count + 1 }, reveal: null });
-          showDraw(newSession("shift", SHIFT_LENGTH));
+          const keno = get().kenoMarks;
+          set({ shiftLog: { ...log, count: log.count + 1 }, reveal: null, kenoMarks: [] });
+          showDraw({ ...newSession("shift", SHIFT_LENGTH), keno, kenoChips: 0, kenoDebt: 0 });
         },
 
         startExam() {
           if (inProgress(get().session)) return get().resume();
           const plan = examConcepts(states(), EXAM_LENGTH, get().attempts.length + 7);
+          // Stake 5: Exam Day mixes in concepts from your previous unit
+          const alumni = get().meta.alumni.map((a) => a.concept.id).filter((id) => get().questions.some((q) => q.conceptId === id));
+          if (stakeHas(stake(), 5)) alumni.slice(0, 2).forEach((id, i) => (plan[plan.length - 1 - i] = id));
           set({ session: newSession("exam", plan.length, plan), line: LINES.exam, reveal: null });
           get().choose(plan[0]);
         },
@@ -238,7 +416,10 @@ export const useGame = create<Data & Actions>()(
         choose(conceptId) {
           const { questions, attempts, flagged, session } = get();
           if (!session) return;
-          const q = pickQuestion(questions, conceptId, attempts, flagged);
+          const hard = session.kind === "audit" && session.auditMod === "hard";
+          const q = hard
+            ? questions.filter((x) => x.conceptId === conceptId && !flagged.includes(x.id)).sort((a, b) => b.difficulty - a.difficulty)[0]
+            : pickQuestion(questions, conceptId, attempts, flagged);
           if (!q) {
             // every question on this concept was flagged; skip it
             return next({ ...session, total: Math.max(session.answered, session.total - 1) });
@@ -255,58 +436,101 @@ export const useGame = create<Data & Actions>()(
           const now = new Date();
           const attempt: Attempt = {
             id: `${now.getTime()}-${s.attempts.length}`, questionId: q.id, conceptId: q.conceptId, chosen, confidence, correct,
-            ms: Date.now() - (session.shownAt ?? Date.now()), at: now.toISOString(), exam: session.kind === "exam",
+            ms: Date.now() - (session.shownAt ?? Date.now()), at: now.toISOString(), exam: session.kind === "exam", shift: s.shiftsDone,
           };
           const base = { questionId: q.id, conceptId: q.conceptId, chosen, confidence, correct };
 
-          if (!correct && s.inventory.secondChance > 0 && !session.retrying && session.kind !== "exam") {
+          if (!correct && s.inventory.secondChance > 0 && !session.retrying && session.kind !== "exam" && session.auditMod !== "noSecondChance") {
             set({
               attempts: [...s.attempts, attempt],
               inventory: { ...s.inventory, secondChance: s.inventory.secondChance - 1 },
               session: { ...session, retrying: true, eliminated: [...session.eliminated, chosen] },
-              reveal: { ...base, balls: 0, chipPenalty: 0, bombPlanted: false, bombDefused: false, secondChance: true, line: LINES.secondChance, streak: s.streak, lostStreak: 0 },
+              reveal: { ...base, balls: 0, chips: 0, debt: 0, mult: 1, bombPlanted: false, bombDefused: false, secondChance: true, line: LINES.secondChance, streak: s.streak, lostStreak: 0 },
               screen: "reveal",
             });
             return;
           }
 
-          const out = betOutcome(confidence, correct);
           const exam = session.kind === "exam";
+          // the multiplier you're playing at scales the gain if right and the debt if wrong, so honest bets stay best
+          const cards = session.hand ?? [];
+          const mult = exam ? 1 : answerMult(streakMultiplier(s.streak + 1), pegHand(cards, s.concepts.length)) * (session.auditMod === "double" ? 2 : 1);
+          const index = s.concepts.findIndex((c) => c.id === q.conceptId);
+          const out = exam ? { chips: 0, debt: 0, balls: 0, plantBomb: betOutcome(confidence, correct).plantBomb } : betOutcome(confidence, correct, mult, stakeTable(stake()));
           const streak = exam ? s.streak : correct ? s.streak + 1 : 0; // Exam Day doesn't touch the streak
-          const before = s.conceptState[q.conceptId];
-          const after = updateState(before, { confidence, correct }, days(), now);
+          const inRun = q.conceptId in s.conceptState; // alumni questions from earlier units don't move this unit's mastery
+          const before = s.conceptState[q.conceptId] ?? newConceptState(q.conceptId, now);
+          const planted = s.bombLedger[q.conceptId];
+          // a bomb defuses on a different question, at least one Shift after it was planted (Spaced Out: the same Shift will do)
+          const defusable = !planted || ((relic("spacedOut") ? s.shiftsDone >= planted.shift : s.shiftsDone > planted.shift) && planted.questionId !== q.id);
+          const after = updateState(before, { confidence, correct, defusable }, days(), now);
           const bombDefused = before.bombActive && !after.bombActive;
-          const penalty = exam ? 0 : Math.min(s.chips, out.chipPenalty);
+          const keno = session.keno?.length && session.kind === "shift" ? kenoScore(session.keno.includes(q.conceptId), correct) : { chips: 0, debt: 0 };
+          // Mystery Fact: odds 1 in 2 on a right Certain answer; Calm mode skips the roll and unlocks every second one
+          const certainRight = s.attempts.filter((a) => a.correct && a.confidence === "certain" && !a.exam).length + 1;
+          const other = s.questions.find((x) => x.conceptId === q.conceptId && x.id !== q.id && !s.flagged.includes(x.id));
+          const fact =
+            correct && confidence === "certain" && !exam && factUnlocked(rng(s.attempts.length * 7 + 3)(), s.settings.calm, certainRight)
+              ? (other?.explanation ?? s.concepts.find((c) => c.id === q.conceptId)?.summary ?? "").split(/(?<=\.)\s/)[0]
+              : undefined;
+          const fever = bombDefused && !exam && s.concepts.every((c) => c.id === q.conceptId || !s.conceptState[c.id]?.bombActive);
+          const seal = relic("seal") && correct && confidence === "certain" && session.kind === "shift" && !session.seal;
+          const comeback = correct && s.attempts.length >= 3 && s.attempts.slice(-3).every((a) => !a.correct);
+          const bombWaiting = before.bombActive && after.bombActive && correct && confidence !== "guess" && !defusable;
+          const potPaid = bombDefused && planted ? defusePayout(planted.share) : 0;
+          const bombLedger = { ...s.bombLedger };
+          if (bombDefused) delete bombLedger[q.conceptId];
+          if (out.plantBomb) bombLedger[q.conceptId] = { share: (planted?.share ?? 0) + POT_PER_BOMB, shift: s.shiftsDone, questionId: q.id };
           const line = out.plantBomb
             ? LINES.certainWrong
             : bombDefused
-              ? LINES.bombDefused
+              ? LINES.bombDefused(potPaid)
+              : bombWaiting
+                ? LINES.bombWaiting
               : correct
                 ? { guess: LINES.guessRight, pretty: LINES.prettyRight, certain: LINES.certainRight }[confidence]
                 : confidence === "guess" ? LINES.guessWrong : LINES.prettyWrong;
 
           set({
             attempts: [...s.attempts, attempt],
-            conceptState: { ...s.conceptState, [q.conceptId]: after },
-            chips: s.chips - penalty,
+            conceptState: inRun ? { ...s.conceptState, [q.conceptId]: after } : s.conceptState,
+            run: bombDefused ? { ...s.run, defused: s.run.defused + 1 } : s.run,
+            meta: bombDefused ? { ...s.meta, defusedTotal: s.meta.defusedTotal + 1 } : s.meta,
+            debt: s.debt + out.debt,
+            pot: s.pot - potPaid + (out.plantBomb ? POT_PER_BOMB : 0),
+            chips: s.chips + potPaid,
+            bombLedger,
+            facts: fact ? [...s.facts, { conceptId: q.conceptId, text: fact }] : s.facts,
+            armed: s.armed.filter((c) => c !== q.conceptId),
             streak,
-            reveal: { ...base, balls: exam ? 0 : out.balls, chipPenalty: penalty, bombPlanted: out.plantBomb, bombDefused, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
+            reveal: { ...base, balls: out.balls, chips: out.chips, debt: out.debt, mult, bombPlanted: out.plantBomb, bombDefused, potPaid, bombWaiting, fever, fact, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
             session: {
               ...session,
               answered: session.answered + 1,
               recent: [...session.recent, q.conceptId],
               retrying: false,
               eliminated: [],
-              pendingBalls: exam ? 0 : out.balls,
+              pendingBalls: out.balls + (fever ? FEVER_BALLS : 0),
+              kenoChips: (session.kenoChips ?? 0) + keno.chips,
+              kenoDebt: (session.kenoDebt ?? 0) + keno.debt,
+              hand: correct && !exam && index >= 0 ? [...cards, { index, confidence }] : cards,
+              seal: session.seal || seal,
+              fever,
+              pendingChips: out.chips,
               dropSeed: s.attempts.length + 1,
-              streakMult: correct && !exam ? streakMultiplier(streak) : 1,
-              chipsLost: session.chipsLost + penalty,
+              mult,
+              debtAdded: (session.debtAdded ?? 0) + out.debt,
+              skillChips: (session.skillChips ?? 0) + potPaid, // defusing is knowledge
+              chipsEarned: session.chipsEarned + potPaid,
               correct: session.correct + (correct ? 1 : 0),
               bombsPlanted: out.plantBomb ? [...session.bombsPlanted, q.conceptId] : session.bombsPlanted,
               bombsDefused: bombDefused ? [...session.bombsDefused, q.conceptId] : session.bombsDefused,
             },
             screen: "reveal",
           });
+          if (bombDefused) story("firstDefuse");
+          if (!correct && confidence === "guess" && !exam) story("honestGuess");
+          if (comeback) story("comeback");
         },
 
         continueReveal() {
@@ -317,27 +541,164 @@ export const useGame = create<Data & Actions>()(
           // Shift and Defuser answers drop on the board beside the reveal; finishDrop moves on
         },
 
-        finishDrop(raw) {
+        finishDrop(raw, rawSkill = 0, armed = [], feverFlat = false) {
           const { session } = get();
           if (!session) return;
-          const chips = Math.round(raw * (session.streakMult ?? 1));
-          set((s) => ({ chips: s.chips + chips }));
-          next({ ...session, pendingBalls: 0, streakMult: 1, chipsEarned: session.chipsEarned + chips });
+          // Calm mode and reduced motion: Fever is a plain summary paying its expected value
+          if (feverFlat && session.fever) raw += FEVER_FLAT;
+          if (armed.length) set((s) => ({ armed: [...new Set([...s.armed, ...armed])] }));
+          // the multiplier rewards knowing, so it scales the bet payout (already in pendingChips) but never the board's luck
+          const board = Math.round(raw);
+          const boardSkill = Math.min(board, Math.round(rawSkill)); // popup questions answered right
+          const answer = session.pendingChips ?? 0;
+          set((s) => ({ chips: s.chips + answer + board }));
+          next({
+            ...session,
+            pendingBalls: 0,
+            pendingChips: 0,
+            mult: 1,
+            fever: false,
+            chipsEarned: session.chipsEarned + answer + board,
+            skillChips: (session.skillChips ?? 0) + answer + boardSkill,
+            chanceChips: (session.chanceChips ?? 0) + board - boardSkill,
+          });
         },
 
         buy(item, conceptId) {
           const s = get();
-          const price = PRICES[item];
+          const ctx = priceCtx(s);
+          const { price } = priceOf(item, ctx);
           if (s.chips < price) return;
-          if (item === "secondChance") set({ chips: s.chips - price, inventory: { ...s.inventory, secondChance: s.inventory.secondChance + 1 } });
-          if ((SHIFT_MODS as ShopItem[]).includes(item) && !s.inventory[item as ShiftMod])
-            set({ chips: s.chips - price, inventory: { ...s.inventory, [item]: true } });
-          if ((SPECIALS as ShopItem[]).includes(item) && !s.inventory.pegs.includes(item as SpecialKind))
-            set({ chips: s.chips - price, inventory: { ...s.inventory, pegs: [...s.inventory.pegs, item as SpecialKind] } });
+          const counted = (patch: Partial<Data>) =>
+            set({
+              ...patch,
+              chips: s.chips - price,
+              shop: {
+                ...s.shop,
+                boughtThisRun: { ...s.shop.boughtThisRun, [item]: (s.shop.boughtThisRun[item] ?? 0) + 1 },
+                usesThisShift: isStudy(item) ? { ...s.shop.usesThisShift, [item]: (s.shop.usesThisShift[item] ?? 0) + 1 } : s.shop.usesThisShift,
+              },
+            });
+          if (item === "secondChance" && s.inventory.secondChance >= secondChanceMax(stake())) return;
+          if (item === "quake" && stakeHas(stake(), 7)) return;
+          if (item === "secondChance") counted({ inventory: { ...s.inventory, secondChance: s.inventory.secondChance + 1 } });
+          if ((SHIFT_MODS as ShopItem[]).includes(item) && !s.inventory[item as ShiftMod]) counted({ inventory: { ...s.inventory, [item]: true } });
+          if (isPeg(item) && ctx.copies[item]! < MAX_COPIES) counted({ inventory: { ...s.inventory, pegs: [...s.inventory.pegs, { kind: item, tier: ctx.tier }] } });
           if (item === "defuser" && conceptId && s.conceptState[conceptId]?.bombActive && !inProgress(s.session)) {
-            set({ chips: s.chips - price, session: newSession("defuse", 1), reveal: null });
+            counted({ session: newSession("defuse", 1), reveal: null });
             get().choose(conceptId);
           }
+        },
+
+        startAudit() {
+          if (inProgress(get().session) || !auditDue(get())) return;
+          const s = get();
+          // bombs first, then the weakest concepts (Stake 4: bombs only)
+          const bombs = s.concepts.filter((c) => s.conceptState[c.id]?.bombActive).map((c) => c.id);
+          const weak = [...s.concepts].sort((a, b) => (s.conceptState[a.id]?.box ?? 1) - (s.conceptState[b.id]?.box ?? 1)).map((c) => c.id);
+          const pool = stakeHas(stake(), 4) && bombs.length ? bombs : [...bombs, ...weak.filter((c) => !bombs.includes(c))];
+          const plan = Array.from({ length: AUDIT_LENGTH }, (_, i) => pool[i % pool.length]);
+          const mods = Object.keys(AUDIT_MODS) as AuditMod[];
+          const auditMod = mods[hashString(`${s.unit?.id}:${s.run.auditsDone}`) % mods.length];
+          set({ session: { ...newSession("audit", plan.length, plan), auditMod }, reveal: null, line: LINES.audit(AUDIT_MODS[auditMod]) });
+          get().choose(plan[0]);
+        },
+
+        finishRun() {
+          const s = get();
+          if (!s.exam || s.meta.draft) return;
+          const grade = calibrationGrade(calibrationGap(s.attempts));
+          const gained = masteryMarks({
+            conceptsMastered: s.concepts.filter((c) => pegState(s.conceptState[c.id]) === "solid").length,
+            bombsDefused: s.run.defused,
+            calibrationGrade: grade,
+            examPercent: s.exam.total ? (100 * s.exam.correct) / s.exam.total : 0,
+          });
+          // the weakest concepts you tried come back in later units as rare Alumni pegs
+          const weak = s.concepts
+            .filter((c) => (s.conceptState[c.id]?.attempts ?? 0) > 0)
+            .sort((a, b) => (s.conceptState[a.id].box - s.conceptState[b.id].box) || (s.conceptState[b.id].confidentWrong - s.conceptState[a.id].confidentWrong))
+            .slice(0, 2)
+            .map((c) => ({ concept: c, questions: s.questions.filter((q) => q.conceptId === c.id) }));
+          const unlocked = !s.settings.calm && s.run.stake >= s.meta.stakeUnlocked && grade >= 2 ? Math.min(MAX_STAKE, s.meta.stakeUnlocked + 1) : s.meta.stakeUnlocked;
+          set({
+            meta: {
+              ...s.meta,
+              marks: s.meta.marks + gained,
+              marksEarned: s.meta.marksEarned + gained,
+              stakeUnlocked: unlocked,
+              alumni: [...weak, ...s.meta.alumni.filter((a) => !weak.some((w) => w.concept.id === a.concept.id))].slice(0, 6),
+              runs: s.meta.runs + 1,
+              draft: { offers: draftOffers(s.meta.relics, s.meta.runs * 13 + 1), rerolls: 0, gained },
+            },
+            screen: "draft",
+          });
+          achieve();
+        },
+
+        draftPick(r, replace) {
+          const { meta } = get();
+          if (!meta.draft?.offers.includes(r) || meta.marks < RELIC_COST || meta.relics.includes(r)) return;
+          const kept = replace ? meta.relics.filter((x) => x !== replace) : meta.relics;
+          if (kept.length >= MAX_RELICS) return; // carry at most 3: pick one to replace
+          set({ meta: { ...meta, marks: meta.marks - RELIC_COST, relics: [...kept, r], draft: { ...meta.draft, offers: meta.draft.offers.filter((x) => x !== r) } } });
+        },
+
+        draftReroll() {
+          const { meta } = get();
+          const d = meta.draft;
+          if (!d || meta.marks < draftRerollCost(d.rerolls)) return;
+          set({ meta: { ...meta, marks: meta.marks - draftRerollCost(d.rerolls), draft: { ...d, rerolls: d.rerolls + 1, offers: draftOffers(meta.relics, meta.runs * 13 + 1 + (d.rerolls + 1) * 101) } } });
+        },
+
+        keepPeg(kind) {
+          const { meta, inventory } = get();
+          if (kind && !inventory.pegs.some((p) => p.kind === kind)) return;
+          set({ meta: { ...meta, keptPeg: kind } });
+        },
+
+        setStake(n) {
+          const { meta, settings } = get();
+          if (settings.calm || n < 1 || n > meta.stakeUnlocked) return; // opt-in, off in Calm mode
+          set({ meta: { ...meta, stake: n } });
+        },
+
+        newUnit() {
+          get().reset();
+        },
+
+        toggleKeno(conceptId) {
+          set((s) => ({ kenoMarks: s.kenoMarks.includes(conceptId) ? s.kenoMarks.filter((c) => c !== conceptId) : [...s.kenoMarks, conceptId] }));
+        },
+
+        goDeeper() {
+          const { reveal, session, questions, flagged } = get();
+          // only after a right answer, once, never on Exam Day
+          if (!reveal || !session || !reveal.correct || reveal.secondChance || reveal.deeper || session.kind === "exam") return;
+          const cur = questions.find((x) => x.id === reveal.questionId);
+          const pool = questions.filter((x) => x.conceptId === reveal.conceptId && x.id !== reveal.questionId && !flagged.includes(x.id));
+          const harder = pool.filter((x) => x.difficulty > (cur?.difficulty ?? 1));
+          const pick = (harder.length ? harder : pool).sort((a, b) => b.difficulty - a.difficulty)[0];
+          if (pick) set({ reveal: { ...reveal, deeper: { questionId: pick.id } } });
+        },
+
+        answerDeeper(chosen) {
+          const { reveal, session, questions } = get();
+          const d = reveal?.deeper;
+          if (!reveal || !session || !d || d.chosen) return;
+          const correct = questions.find((x) => x.id === d.questionId)?.correct === chosen;
+          set((s) => ({
+            chips: s.chips + (correct ? DEEPER_CHIPS : 0),
+            reveal: { ...reveal, deeper: { ...d, chosen, correct } },
+            session: correct ? { ...session, chipsEarned: session.chipsEarned + DEEPER_CHIPS, skillChips: (session.skillChips ?? 0) + DEEPER_CHIPS } : session,
+          }));
+        },
+
+        reroll() {
+          const s = get();
+          const cost = rerollCost(s.shop.rerolls);
+          if (s.chips < cost) return;
+          set({ chips: s.chips - cost, shop: { ...s.shop, rerolls: s.shop.rerolls + 1 } });
         },
 
         flag(questionId) {
@@ -350,21 +711,49 @@ export const useGame = create<Data & Actions>()(
           set((s) => ({ settings: { ...s.settings, ...patch } }));
         },
 
+        /** "New unit": clears the run, keeps settings and meta. */
         reset() {
-          set({ ...initial, settings: get().settings });
+          set({ ...initial, settings: get().settings, meta: { ...get().meta, draft: null } });
         },
       };
     },
     {
       name: "sure-thing-v1",
-      // older saves predate the crazy shop
-      merge: (saved, current) => {
-        const s = saved as Partial<Data>;
-        return { ...current, ...s, inventory: { ...initial.inventory, ...s.inventory }, settings: { ...initial.settings, ...s.settings } };
-      },
+      merge: (saved, current) => mergeSave(saved, current),
     }
   )
 );
+
+
+/** Loads older sure-thing-v1 saves with sensible defaults. They predate the crazy shop, the game-show reskin, copies and tiers. */
+export function mergeSave<T extends Data>(saved: unknown, current: T): T {
+  const s = (saved ?? {}) as Partial<Data>;
+  const inventory = { ...initial.inventory, ...s.inventory };
+  // pegs were plain names before copies and tiers
+  inventory.pegs = (inventory.pegs as (OwnedPeg | string)[]).map((k) => (typeof k === "string" ? { kind: RENAMED[k] ?? (k as SpecialKind), tier: 1 } : k));
+  const shop = { ...initial.shop, ...s.shop };
+  const meta = { ...initialMeta, ...s.meta };
+  const run = { ...initial.run, ...s.run };
+  return { ...current, ...s, inventory, shop, meta, run, settings: { ...initial.settings, ...s.settings } };
+}
+
+/** A Collector's Audit is due every 3 to 4 days of a run (seeded per unit). */
+export function auditDue(s: Pick<Data, "run" | "unit" | "concepts">, now = new Date()) {
+  if (!s.run.start || s.concepts.length === 0) return false;
+  const days = Math.floor((now.getTime() - new Date(s.run.start + "T00:00:00").getTime()) / 86_400_000);
+  return days >= auditEvery(hashString(s.unit?.id ?? "")) * (s.run.auditsDone + 1);
+}
+
+/** Share of concepts that are Solid (box 4 or 5, no bomb). Unlocks stronger peg tiers. */
+export function masteredShare(s: Pick<Data, "concepts" | "conceptState">) {
+  if (s.concepts.length === 0) return 0;
+  return s.concepts.filter((c) => pegState(s.conceptState[c.id]) === "solid").length / s.concepts.length;
+}
+
+export function priceCtx(s: Pick<Data, "concepts" | "conceptState" | "inventory" | "shop">): PriceCtx {
+  const copies: Partial<Record<PegKind, number>> = Object.fromEntries(SPECIALS.map((k) => [k, s.inventory.pegs.filter((p) => p.kind === k).length]));
+  return { boughtThisRun: s.shop.boughtThisRun, usesThisShift: s.shop.usesThisShift, copies, tier: tierUnlocked(masteredShare(s)), index: incomeIndex(s.shop.shiftIncome) };
+}
 
 /** Shared derived values for the UI. */
 export function useDerived() {
