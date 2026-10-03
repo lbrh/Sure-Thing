@@ -275,3 +275,63 @@ describe("shop pegs and old saves", () => {
     expect(m.shop).toEqual({ boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] });
   });
 });
+
+describe("knowledge mechanics through the store", () => {
+  const fresh = async () => {
+    const l = await loadUnit("Databases 101", "2026-10-11", () => {});
+    g().setup(l.unit, l.concepts, l.questions);
+    useGame.setState({ shiftLog: { date: "", count: 0 } });
+  };
+  it("Go Deeper is offered only after a right answer and pays flat chips", async () => {
+    await fresh();
+    g().startShift();
+    g().choose(g().session!.offer[0]);
+    let q = g().questions.find((x) => x.id === g().session!.questionId)!;
+    g().answer(q.correct === "A" ? "B" : "A", "guess");
+    g().goDeeper();
+    expect(g().reveal!.deeper).toBeUndefined(); // never after a loss
+    g().finishDrop(0);
+    g().choose(g().session!.offer[0]);
+    q = g().questions.find((x) => x.id === g().session!.questionId)!;
+    g().answer(q.correct, "pretty");
+    g().goDeeper();
+    const d = g().questions.find((x) => x.id === g().reveal!.deeper!.questionId)!;
+    expect(d.conceptId).toBe(q.conceptId);
+    expect(d.difficulty).toBeGreaterThanOrEqual(q.difficulty);
+    const chips = g().chips;
+    g().answerDeeper(d.correct);
+    expect(g().chips).toBe(chips + 3);
+    g().answerDeeper(d.correct); // once only
+    expect(g().chips).toBe(chips + 3);
+  });
+  it("Calibration Keno marks lock in at the start of a Shift and settle at the end", async () => {
+    await fresh();
+    g().toggleKeno("nulls");
+    g().toggleKeno("joins");
+    g().toggleKeno("joins");
+    expect(g().kenoMarks).toEqual(["nulls"]);
+    g().startShift();
+    expect(g().session!.keno).toEqual(["nulls"]);
+    expect(g().kenoMarks).toEqual([]);
+    g().choose("nulls");
+    const q = g().questions.find((x) => x.id === g().session!.questionId)!;
+    g().answer(q.correct === "A" ? "B" : "A", "guess"); // marked and wrong
+    expect(g().session!.kenoDebt).toBe(2);
+    expect(g().debt).toBe(0); // settled at the end of the Shift, not before
+  });
+  it("Calm mode unlocks a Mystery Fact on every second right Certain answer", async () => {
+    await fresh();
+    g().updateSettings({ calm: true });
+    g().startShift();
+    const facts: boolean[] = [];
+    for (let i = 0; i < 4; i++) {
+      g().choose(g().session!.offer[0]);
+      const q = g().questions.find((x) => x.id === g().session!.questionId)!;
+      g().answer(q.correct, "certain");
+      facts.push(Boolean(g().reveal!.fact));
+      g().finishDrop(0);
+    }
+    expect(facts).toEqual([false, true, false, true]);
+    g().updateSettings({ calm: false });
+  });
+});

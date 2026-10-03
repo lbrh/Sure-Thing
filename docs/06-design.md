@@ -218,7 +218,9 @@ Three offers shown per visit, drawn at random from the item list (roguelike feel
 
 **As built:** three rows. **Skins** (Retro 95 and MAXIMUM CHAOS, free to switch), **Study tools** (Second Chance and Defuser, always on sale), and **Today's crazy offers** (3 items from Magnet, MEGA BUCKET, Earthquake and any board pegs you do not own yet, rotating as you answer more questions). Every card is a Win95 window with a hit-counter price, the odds where there are any, and a "NEED n MORE" line when you cannot afford it. If you left a Shift to shop, a Resume button takes you back.
 
-**Next: rising prices.** Prices must grow as the player earns more chips, Cookie Clicker style (`10-progression-and-inspiration.md`, section 1). Each card should show the current price, the next price and why it rose, so the curve is transparent like the odds.
+**Hub additions (October 2026).** A Concept Bingo card under the board, a Calibration Keno panel (collapsed, optional) above the Shift stats, the Ledger Pot, and a Readiness Odds line labelled as an estimate with its answer count. The reveal can show a Mystery Fact and a Go Deeper button after a right answer. The Shift summary is a scratch-style Report Card, shown all at once in Calm mode.
+
+**Rising prices (built).** Prices must grow as the player earns more chips, Cookie Clicker style (`10-progression-and-inspiration.md`, section 1). Each card should show the current price, the next price and why it rose, so the curve is transparent like the odds.
 
 ### 5.8 Readiness Report
 

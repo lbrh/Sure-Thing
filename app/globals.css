@@ -303,6 +303,14 @@ details summary { cursor: pointer; font-weight: 700; min-height: 32px; text-tran
 .quiz-timer div { background: repeating-linear-gradient(90deg, #ff0000 0 10px, transparent 10px 12px); }
 .result-big { font-family: var(--font-head); font-size: 2rem; text-align: center; text-shadow: 2px 2px 0 #000; margin: 6px 0; }
 
+/* ---------- Concept Bingo, Keno, Shift Report Card ---------- */
+.bingo { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; background: #000; border: 2px solid; border-color: var(--in-colors); }
+.bingo-cell { min-height: 48px; padding: 2px; background: var(--white); font-size: 0.65rem; line-height: 1.1; display: grid; place-items: center; text-align: center; overflow: hidden; }
+.bingo-cell.on { background: var(--yellow); font-weight: 700; }
+.keno { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; }
+.keno-cell { display: flex; gap: 6px; align-items: center; min-height: 32px; font-size: 0.85rem; }
+.scratch { min-width: 120px; min-height: 28px; border: 2px solid; border-color: var(--out-colors); background: repeating-linear-gradient(45deg, #808080 0 4px, #c0c0c0 4px 8px); font-family: var(--font-mono); font-weight: 700; cursor: pointer; }
+
 /* ---------- Cheer: proportional, no strobing background ---------- */
 .cheer { position: fixed; inset: 0; z-index: 60; pointer-events: none; display: grid; place-items: center; }
 .cheer-text { font-family: var(--font-head); line-height: 0.9; text-align: center; transform: rotate(-6deg); -webkit-text-stroke: 2px #000; text-shadow: 4px 4px 0 #000; animation: rainbow 1s linear infinite, mega-pop 0.4s ease-out; }

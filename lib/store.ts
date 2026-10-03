@@ -3,12 +3,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
-  daysUntil, drawOffer, pegState, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
+  daysUntil, drawOffer, hashString, pegState, rng, examConcepts, newConceptState, pickQuestion, readiness, streakMultiplier, updateState,
   type Attempt, type Concept, type ConceptState, type Confidence, type ExamResult, type OptionId, type Question,
 } from "./engine";
 import { LINES } from "./copy";
 import {
-  answerMult, betOutcome, calibrationBonus, pegHand, type HandCard, defusePayout, examPotPayout, POT_PER_BOMB, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
+  answerMult, betOutcome, bingoCard, bingoLines, bingoMarked, BINGO_LINE, DEEPER_CHIPS, factUnlocked, kenoScore, calibrationBonus, pegHand, type HandCard, defusePayout, examPotPayout, POT_PER_BOMB, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
   type PriceCtx,
 } from "./economy";
 import { FEVER_BALLS, FEVER_FLAT, type OwnedPeg, type SpecialKind } from "./board";
@@ -54,6 +54,10 @@ export interface Session {
   debtAdded: number;
   fever?: boolean; // the waiting drop is a Fever round
   hand?: HandCard[]; // this Shift's correct answers, for Peg Hands
+  keno?: string[]; // Keno marks locked in when the Shift started
+  kenoChips?: number;
+  kenoDebt?: number;
+  bingoBonus?: number;
   feverChips?: number;
   calBonus?: number; // paid at the end of a Shift
   interest?: number;
@@ -85,6 +89,8 @@ export interface Reveal {
   bombDefused: boolean;
   potPaid?: number; // Ledger Pot share paid for this defuse
   fever?: boolean; // that was the last bomb on the board
+  fact?: string; // Mystery Fact unlocked by a right Certain answer
+  deeper?: { questionId: string; chosen?: OptionId; correct?: boolean }; // Go Deeper follow-up
   bombWaiting?: boolean; // right on a bomb that hasn't waited a Shift yet
   secondChance: boolean;
   line: string;
@@ -113,6 +119,9 @@ interface Data {
   pot: number; // Ledger Pot: +5 per bomb planted, paid out by defusing and on Exam Day
   bombLedger: Record<string, BombEntry>;
   armed: string[]; // bomb concepts a ball hit: their retest leads the next Draw
+  kenoMarks: string[]; // concepts you expect to get right next Shift (Calibration Keno)
+  facts: { conceptId: string; text: string }[]; // Mystery Facts unlocked
+  bingoPaid: number; // Concept Bingo lines already paid
   inventory: { secondChance: number; magnet: boolean; mega: boolean; quake: boolean; pegs: OwnedPeg[] };
   shop: ShopState;
   settings: Settings;
@@ -143,6 +152,9 @@ export interface ShopState {
 
 interface Actions {
   reroll(): void;
+  toggleKeno(conceptId: string): void;
+  goDeeper(): void;
+  answerDeeper(chosen: OptionId): void;
   setup(unit: Unit, concepts: Concept[], questions: Question[]): void;
   go(screen: Screen): void;
   startShift(): void;
@@ -171,6 +183,9 @@ const initial: Data = {
   pot: 0,
   bombLedger: {},
   armed: [],
+  kenoMarks: [],
+  facts: [],
+  bingoPaid: 0,
   inventory: { secondChance: 0, magnet: false, mega: false, quake: false, pegs: [] },
   shop: { boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] },
   settings: { skin: "retro", calm: false, dailyCap: 6, sound: true, reducedMotion: false },
@@ -221,16 +236,23 @@ export const useGame = create<Data & Actions>()(
         const calBonus = session.kind === "shift" ? calibrationBonus(calibrationGrade(calibrationGap(get().attempts))) : 0;
         const shift = session.kind === "shift";
         set((s) => {
+          // Concept Bingo lines completed since the last payout, and Calibration Keno: both skill income
+          const lines = bingoLines(bingoCard(s.concepts.map((c) => c.id), hashString(s.unit?.id ?? "")), bingoMarked(s.attempts));
+          const bingoBonus = shift ? Math.max(0, lines - s.bingoPaid) * BINGO_LINE : 0;
+          const keno = shift ? (session.kenoChips ?? 0) : 0;
+          const skill = calBonus + bingoBonus + keno;
           // interest: +1 per 10 chips held at the end of a Shift, capped at +3
-          const paid = shift ? interest(s.chips + calBonus) : 0;
+          const paid = shift ? interest(s.chips + skill) : 0;
           return {
-            chips: s.chips + calBonus + paid,
-            session: { ...session, finished: true, calBonus, interest: paid, skillChips: (session.skillChips ?? 0) + calBonus, chipsEarned: session.chipsEarned + calBonus },
+            chips: s.chips + skill + paid,
+            debt: s.debt + (shift ? (session.kenoDebt ?? 0) : 0),
+            bingoPaid: shift ? Math.max(s.bingoPaid, lines) : s.bingoPaid,
+            session: { ...session, finished: true, calBonus, bingoBonus, interest: paid, skillChips: (session.skillChips ?? 0) + skill, chipsEarned: session.chipsEarned + skill },
             screen: "summary",
             line: LINES.endShift(drop),
             shiftsDone: s.shiftsDone + (shift ? 1 : 0),
             inventory: shift ? { ...s.inventory, magnet: false, mega: false, quake: false } : s.inventory,
-            shop: shift ? { ...s.shop, usesThisShift: {}, rerolls: 0, shiftIncome: [...s.shop.shiftIncome, session.chipsEarned + calBonus] } : s.shop,
+            shop: shift ? { ...s.shop, usesThisShift: {}, rerolls: 0, shiftIncome: [...s.shop.shiftIncome, session.chipsEarned + skill] } : s.shop,
           };
         });
       };
@@ -283,8 +305,9 @@ export const useGame = create<Data & Actions>()(
             set({ line: LINES.cap, screen: "hub" });
             return;
           }
-          set({ shiftLog: { ...log, count: log.count + 1 }, reveal: null });
-          showDraw(newSession("shift", SHIFT_LENGTH));
+          const keno = get().kenoMarks;
+          set({ shiftLog: { ...log, count: log.count + 1 }, reveal: null, kenoMarks: [] });
+          showDraw({ ...newSession("shift", SHIFT_LENGTH), keno, kenoChips: 0, kenoDebt: 0 });
         },
 
         startExam() {
@@ -314,7 +337,7 @@ export const useGame = create<Data & Actions>()(
           const now = new Date();
           const attempt: Attempt = {
             id: `${now.getTime()}-${s.attempts.length}`, questionId: q.id, conceptId: q.conceptId, chosen, confidence, correct,
-            ms: Date.now() - (session.shownAt ?? Date.now()), at: now.toISOString(), exam: session.kind === "exam",
+            ms: Date.now() - (session.shownAt ?? Date.now()), at: now.toISOString(), exam: session.kind === "exam", shift: s.shiftsDone,
           };
           const base = { questionId: q.id, conceptId: q.conceptId, chosen, confidence, correct };
 
@@ -342,6 +365,14 @@ export const useGame = create<Data & Actions>()(
           const defusable = !planted || (s.shiftsDone > planted.shift && planted.questionId !== q.id);
           const after = updateState(before, { confidence, correct, defusable }, days(), now);
           const bombDefused = before.bombActive && !after.bombActive;
+          const keno = session.keno?.length && session.kind === "shift" ? kenoScore(session.keno.includes(q.conceptId), correct) : { chips: 0, debt: 0 };
+          // Mystery Fact: odds 1 in 2 on a right Certain answer; Calm mode skips the roll and unlocks every second one
+          const certainRight = s.attempts.filter((a) => a.correct && a.confidence === "certain" && !a.exam).length + 1;
+          const other = s.questions.find((x) => x.conceptId === q.conceptId && x.id !== q.id && !s.flagged.includes(x.id));
+          const fact =
+            correct && confidence === "certain" && !exam && factUnlocked(rng(s.attempts.length * 7 + 3)(), s.settings.calm, certainRight)
+              ? (other?.explanation ?? s.concepts.find((c) => c.id === q.conceptId)?.summary ?? "").split(/(?<=\.)\s/)[0]
+              : undefined;
           const fever = bombDefused && !exam && s.concepts.every((c) => c.id === q.conceptId || !s.conceptState[c.id]?.bombActive);
           const bombWaiting = before.bombActive && after.bombActive && correct && confidence !== "guess" && !defusable;
           const potPaid = bombDefused && planted ? defusePayout(planted.share) : 0;
@@ -365,9 +396,10 @@ export const useGame = create<Data & Actions>()(
             pot: s.pot - potPaid + (out.plantBomb ? POT_PER_BOMB : 0),
             chips: s.chips + potPaid,
             bombLedger,
+            facts: fact ? [...s.facts, { conceptId: q.conceptId, text: fact }] : s.facts,
             armed: s.armed.filter((c) => c !== q.conceptId),
             streak,
-            reveal: { ...base, balls: out.balls, chips: out.chips, debt: out.debt, mult, bombPlanted: out.plantBomb, bombDefused, potPaid, bombWaiting, fever, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
+            reveal: { ...base, balls: out.balls, chips: out.chips, debt: out.debt, mult, bombPlanted: out.plantBomb, bombDefused, potPaid, bombWaiting, fever, fact, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
             session: {
               ...session,
               answered: session.answered + 1,
@@ -375,6 +407,8 @@ export const useGame = create<Data & Actions>()(
               retrying: false,
               eliminated: [],
               pendingBalls: out.balls + (fever ? FEVER_BALLS : 0),
+              kenoChips: (session.kenoChips ?? 0) + keno.chips,
+              kenoDebt: (session.kenoDebt ?? 0) + keno.debt,
               hand: correct && !exam && index >= 0 ? [...cards, { index, confidence }] : cards,
               fever,
               pendingChips: out.chips,
@@ -444,6 +478,33 @@ export const useGame = create<Data & Actions>()(
             counted({ session: newSession("defuse", 1), reveal: null });
             get().choose(conceptId);
           }
+        },
+
+        toggleKeno(conceptId) {
+          set((s) => ({ kenoMarks: s.kenoMarks.includes(conceptId) ? s.kenoMarks.filter((c) => c !== conceptId) : [...s.kenoMarks, conceptId] }));
+        },
+
+        goDeeper() {
+          const { reveal, session, questions, flagged } = get();
+          // only after a right answer, once, never on Exam Day
+          if (!reveal || !session || !reveal.correct || reveal.secondChance || reveal.deeper || session.kind === "exam") return;
+          const cur = questions.find((x) => x.id === reveal.questionId);
+          const pool = questions.filter((x) => x.conceptId === reveal.conceptId && x.id !== reveal.questionId && !flagged.includes(x.id));
+          const harder = pool.filter((x) => x.difficulty > (cur?.difficulty ?? 1));
+          const pick = (harder.length ? harder : pool).sort((a, b) => b.difficulty - a.difficulty)[0];
+          if (pick) set({ reveal: { ...reveal, deeper: { questionId: pick.id } } });
+        },
+
+        answerDeeper(chosen) {
+          const { reveal, session, questions } = get();
+          const d = reveal?.deeper;
+          if (!reveal || !session || !d || d.chosen) return;
+          const correct = questions.find((x) => x.id === d.questionId)?.correct === chosen;
+          set((s) => ({
+            chips: s.chips + (correct ? DEEPER_CHIPS : 0),
+            reveal: { ...reveal, deeper: { ...d, chosen, correct } },
+            session: correct ? { ...session, chipsEarned: session.chipsEarned + DEEPER_CHIPS, skillChips: (session.skillChips ?? 0) + DEEPER_CHIPS } : session,
+          }));
         },
 
         reroll() {

@@ -8,6 +8,7 @@ import { CheerOverlay, HoldModal, ITEM_INFO } from "./Mods";
 import { ColorSquares, Counter, Marquee, Window } from "./ui";
 import Chaos, { Banners, EmojiSwarm, confetti } from "./Chaos";
 import Seal, { sealDo } from "./Seal";
+import { BingoCard, GoDeeper, KenoPanel, MysteryFact, ReadinessOdds, ScratchRows } from "./Knowledge";
 import { inProgress, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
 import { FEVER_BALLS, FEVER_FLAT, FEVER_MULTIPLIERS, layoutPegs, placeSpecials, type Hold, type HoldResult, type PegSpec } from "@/lib/board";
 import { badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
@@ -99,7 +100,7 @@ function Screen({ reduced }: { reduced: boolean }) {
     case "board": // older saves
       return <RevealScreen reduced={reduced} />;
     case "summary":
-      return <Summary />;
+      return <Summary reduced={reduced} />;
     case "shop":
       return <Shop />;
     case "report":
@@ -400,6 +401,7 @@ function Hub({ reduced }: { reduced: boolean }) {
             </li>
             {mods.length > 0 && <li>Ready for next Shift: {mods.join(", ")}</li>}
           </ul>
+          <ReadinessOdds />
         </Window>
         <Collector line={capHit ? LINES.cap : g.line || LINES.hub} />
         {g.pot > 0 && <Collector line={LINES.pot(g.pot)} />}
@@ -422,6 +424,7 @@ function Hub({ reduced }: { reduced: boolean }) {
               Exam Day
             </button>
           </div>
+          {!inProgress(g.session) && <KenoPanel />}
           <p className="small">
             {g.shiftsDone} Shift{g.shiftsDone === 1 ? "" : "s"} played. {g.shiftsDone < 3 ? "Exam Day (a 10 question mock) works best after 3 Shifts." : "Ready for Exam Day when you are."} {t.Chips} only come from the board.
           </p>
@@ -433,6 +436,7 @@ function Hub({ reduced }: { reduced: boolean }) {
           <Legend />
         </Window>
         {peg ? <PegCard peg={peg} onClose={() => setPeg(null)} /> : <p className="small center">Tap a peg to see what it is.</p>}
+        <BingoCard />
       </section>
     </div>
   );
@@ -674,6 +678,7 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
           {!exam && !r.correct && !r.secondChance && r.lostStreak >= 2 && <p className="mono">STREAK OF {r.lostStreak} LOST</p>}
 
           <Collector line={r.bombPlanted ? LINES.bombPlanted(concept.name) : r.line} />
+          <MysteryFact fact={r.fact} />
 
           {!r.secondChance && (
             <>
@@ -691,6 +696,7 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
             </>
           )}
 
+          {!exam && <GoDeeper />}
           {!droppable ? (
             <button className={`btn big ${r.bombPlanted ? "danger" : "success"}`} onClick={g.continueReveal} autoFocus>
               {r.secondChance ? "Try again" : last ? "See my report" : "Next question"}
@@ -806,7 +812,7 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips:
 
 /* ---------- Shift summary ---------- */
 
-function Summary() {
+function Summary({ reduced }: { reduced: boolean }) {
   const g = useGame();
   const s = g.session;
   const { ready } = useDerived();
@@ -821,18 +827,22 @@ function Summary() {
       <Window title={s.kind === "defuse" ? "DEFUSER_LOG.TXT" : "SHIFT_COMPLETE.TXT"}>
         <h2 className="rainbow">{s.kind === "defuse" ? "Defuser done" : "Shift complete!"}</h2>
         <Collector line={g.line} />
-        <table>
-          <tbody>
-            <tr><td>Right</td><td className="mono">{s.correct} of {s.answered}</td></tr>
-            <tr><td>Earned</td><td className="mono">+{s.chipsEarned} {t.chips}</td></tr>
-            {(s.interest ?? 0) > 0 && <tr><td>Interest</td><td className="mono">+{s.interest} (1 per 10 held, up to 3)</td></tr>}
-            {(s.calBonus ?? 0) > 0 && <tr><td>Calibration bonus</td><td className="mono">+{s.calBonus} (3 per grade point)</td></tr>}
-            {(s.debtAdded ?? 0) > 0 && <tr><td>Ledger debt added</td><td className="mono">+{s.debtAdded} (total {g.debt})</td></tr>}
-            <tr><td>Readiness (estimate)</td><td className="mono">{s.readinessBefore}% → {ready}%</td></tr>
-            {s.bombsPlanted.length > 0 && <tr><td>Bombs planted</td><td>{s.bombsPlanted.map(name).join(", ")}</td></tr>}
-            {s.bombsDefused.length > 0 && <tr><td>Bombs defused</td><td>{s.bombsDefused.map(name).join(", ")}</td></tr>}
-          </tbody>
-        </table>
+        <p className="small">Your Shift Report Card. Everything on it is already decided: scratch to read it, or reveal it all.</p>
+        <ScratchRows
+          instant={g.settings.calm || reduced}
+          rows={([
+            ["Right", `${s.correct} of ${s.answered}`],
+            ["Earned", `+${s.chipsEarned} ${t.chips}`],
+            (s.calBonus ?? 0) > 0 && ["Calibration bonus", `+${s.calBonus} (3 per grade point)`],
+            (s.bingoBonus ?? 0) > 0 && ["Concept Bingo lines", `+${s.bingoBonus}`],
+            s.keno?.length && ["Calibration Keno", `+${s.kenoChips ?? 0} ${t.chips}, +${s.kenoDebt ?? 0} debt`],
+            (s.interest ?? 0) > 0 && ["Interest", `+${s.interest} (1 per 10 held, up to 3)`],
+            (s.debtAdded ?? 0) > 0 && ["Ledger debt added", `+${s.debtAdded} (total ${g.debt})`],
+            ["Readiness (estimate)", `${s.readinessBefore}% → ${ready}%`],
+            s.bombsPlanted.length > 0 && ["Bombs planted", s.bombsPlanted.map(name).join(", ")],
+            s.bombsDefused.length > 0 && ["Bombs defused", s.bombsDefused.map(name).join(", ")],
+          ].filter(Boolean) as [string, string][])}
+        />
         <SkillMeter skill={s.skillChips ?? 0} chance={s.chanceChips ?? 0} />
         <hr />
         <div className="row">

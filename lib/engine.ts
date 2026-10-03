@@ -40,6 +40,7 @@ export interface Attempt {
   ms: number;
   at: string;
   exam?: boolean;
+  shift?: number; // shiftsDone when answered, for spacing (older saves: missing)
 }
 
 export interface ConceptState {
@@ -271,4 +272,14 @@ export function examConcepts(states: ConceptState[], n: number, seed: number): s
 export const STREAK_CAP = 3;
 export function streakMultiplier(streak: number): number {
   return streak <= 1 ? 1 : Math.min(STREAK_CAP, 1 + 0.5 * (streak - 1));
+}
+
+/**
+ * Readiness Odds: a live estimate of the Exam Day score from per-concept accuracy (Laplace smoothed: right + 1 over tries + 2).
+ * Always shown as an estimate with the number of answers behind it. Never a prediction.
+ */
+export function examForecast(states: ConceptState[], examLength = 10) {
+  if (states.length === 0) return { expected: 0, of: examLength, answers: 0 };
+  const p = states.reduce((s, c) => s + (c.correctCount + 1) / (c.attempts + 2), 0) / states.length;
+  return { expected: Math.round(p * examLength), of: examLength, answers: states.reduce((s, c) => s + c.attempts, 0) };
 }

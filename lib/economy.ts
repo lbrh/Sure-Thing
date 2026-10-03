@@ -1,5 +1,5 @@
 // Pure economy maths: bets, Ledger debt, calibration, skill share. Tested by tests/engine.test.ts and tests/tuning.test.ts.
-import type { Attempt, Confidence } from "./engine";
+import { rng, type Attempt, type Confidence } from "./engine"; // rng is only called inside functions, so the import cycle with engine.ts is safe
 
 export const CONFS: Confidence[] = ["guess", "pretty", "certain"];
 
@@ -203,3 +203,45 @@ export function pegHand(cards: HandCard[], conceptCount: number): (typeof HANDS)
 
 /** The multiplier an answer plays at: streak times Peg Hand, capped at x10. Scales gains and debts alike. */
 export const answerMult = (streakMult: number, hand: { mult: number } | null) => Math.min(MULT_CAP, streakMult * (hand?.mult ?? 1));
+
+/* ---------- Knowledge mechanics ---------- */
+
+/** Concept Bingo: 5x5, free centre. Concepts fill the 24 squares in a seeded order, repeating when a unit has fewer than 24. */
+export const FREE = "FREE";
+export function bingoCard(conceptIds: string[], seed: number): string[] {
+  if (conceptIds.length === 0) return [];
+  const rand = rng(seed);
+  const cells = Array.from({ length: 24 }, (_, i) => conceptIds[i % conceptIds.length]).map((c) => ({ c, r: rand() }));
+  const order = cells.sort((a, b) => a.r - b.r).map((x) => x.c);
+  return [...order.slice(0, 12), FREE, ...order.slice(12)];
+}
+/** A square marks after 2 correct retrievals (Pretty sure or Certain) in different Shifts. */
+export function bingoMarked(attempts: Pick<Attempt, "conceptId" | "correct" | "confidence" | "shift">[]): Set<string> {
+  const shifts = new Map<string, Set<number>>();
+  for (const a of attempts)
+    if (a.correct && a.confidence !== "guess") shifts.set(a.conceptId, (shifts.get(a.conceptId) ?? new Set()).add(a.shift ?? 0));
+  return new Set([...shifts].filter(([, s]) => s.size >= 2).map(([c]) => c));
+}
+const LINES5 = [
+  ...[0, 1, 2, 3, 4].map((r) => [0, 1, 2, 3, 4].map((c) => r * 5 + c)),
+  ...[0, 1, 2, 3, 4].map((c) => [0, 1, 2, 3, 4].map((r) => r * 5 + c)),
+  [0, 6, 12, 18, 24],
+  [4, 8, 12, 16, 20],
+];
+export const bingoLines = (card: string[], marked: Set<string>) => LINES5.filter((l) => l.every((i) => card[i] === FREE || marked.has(card[i]))).length;
+export const BINGO_LINE = 5; // chips per completed line, paid at the end of the Shift it completes in
+
+/** Calibration Keno: marked and right +2, marked and wrong +2 debt, unmarked and wrong +1, unmarked and right 0. */
+export const KENO_RULE = "Marked and right +2. Marked and wrong +2 debt. Unmarked and wrong +1. Unmarked and right 0.";
+export const kenoScore = (marked: boolean, correct: boolean) =>
+  marked ? (correct ? { chips: 2, debt: 0 } : { chips: 0, debt: 2 }) : { chips: correct ? 0 : 1, debt: 0 };
+/** Marking pays when you expect to be right more than 60% of the time: 4p - 2 beats 1 - p. */
+export const kenoBreakEven = 0.6;
+
+/** Mystery Fact: a right Certain answer unlocks a short fact 1 time in 2. Calm mode skips the roll and unlocks every second one. */
+export const FACT_ODDS = 0.5;
+export const factUnlocked = (roll: number, calm: boolean, certainRightCount: number) => (calm ? certainRightCount % 2 === 0 : roll < FACT_ODDS);
+
+/** Go Deeper: one harder follow-up after a right answer only. Flat chips, no bet, no mastery change. */
+export const DEEPER_CHIPS = 3;
+

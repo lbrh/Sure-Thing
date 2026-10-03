@@ -76,9 +76,9 @@ The build already has Roulette and Blackjack pegs. More options, sorted by how w
 
 | Source | Idea |
 |---|---|
-| Keno | Before a Shift, pick which concepts you expect to get right. Pays for accurate predictions, which is a calibration bet |
-| Bingo | A 3x3 card of concepts. Turning a full row Solid pays a bonus |
-| Double or nothing | After a win, double the chips by answering one more question at Certain. A knowledge bet, never a coin flip |
+| Keno | Built as Calibration Keno: mark concepts before a Shift. +2 marked and right, +2 debt marked and wrong, +1 unmarked and wrong |
+| Bingo | Built as Concept Bingo: a 5x5 card, squares mark after 2 spaced right answers, lines pay +5 |
+| Double or nothing | Built as Go Deeper, without the "double or nothing": after a right answer, one harder question for +3. Nothing is put at stake and it is never offered after a loss |
 | Progressive jackpot | Built as the Ledger Pot: +5 per bomb planted, half a bomb's share paid when it is defused a Shift or more later, the rest on Exam Day by readiness. It never costs chips |
 | Poker hands (the Balatro approach) | Built as Peg Hands: chips x mult, where the Shift's right answers form a Flush (x3), Straight (x4) or Full House (x5), capped at x10 with the streak |
 | VIP or loyalty tiers | Tiers by lifetime chips earned, which pairs with the price tiers in section 1.2 |
@@ -87,7 +87,7 @@ The build already has Roulette and Blackjack pegs. More options, sorted by how w
 
 | Source | Idea |
 |---|---|
-| Scratch cards | A scratch card at the end of a Shift, with odds shown |
+| Scratch cards | Built as the Shift Report Card: a scratch-style reveal of a summary that is already decided. No chance involved |
 | Slot style bonus rounds and free spins | One ball hitting 3 Solid pegs triggers a short bonus drop |
 | Wheel spins | Already built as the Roulette Peg |
 | Craps, baccarat, other card games | More capture-peg popups like Blackjack |

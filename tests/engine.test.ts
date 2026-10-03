@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  rng, updateState, newConceptState, pegState, priority, calibration, drawOffer,
+  examForecast, rng, updateState, newConceptState, pegState, priority, calibration, drawOffer,
   pickQuestion, readiness, daysUntil, type Attempt, type ConceptState, type Confidence,
 } from "@/lib/engine";
 import bank from "@/data/databases-101.json";
 import { SEEDED, loadUnit } from "@/lib/loadUnit";
 import type { Question } from "@/lib/engine";
-import { defusePayout, examPotPayout, bestBet, betOutcome, boostPrice, breakEven, calibrationGap, calibrationGrade, evNet, incomeIndex, interest, pegPrice, rerollCost, studyPrice, tierUnlocked } from "@/lib/economy";
+import { bingoCard, bingoLines, bingoMarked, factUnlocked, FREE, kenoBreakEven, kenoScore, defusePayout, examPotPayout, bestBet, betOutcome, boostPrice, breakEven, calibrationGap, calibrationGrade, evNet, incomeIndex, interest, pegPrice, rerollCost, studyPrice, tierUnlocked } from "@/lib/economy";
 
 const now = new Date("2026-10-02T10:00:00");
 const fresh = (id = "c") => newConceptState(id, now);
@@ -221,5 +221,46 @@ describe("Ledger Pot", () => {
     const bomb = play(fresh(), "certain", false);
     expect(updateState(bomb, { confidence: "pretty", correct: true, defusable: false }, 9, now).bombActive).toBe(true);
     expect(updateState(bomb, { confidence: "pretty", correct: true }, 9, now).bombActive).toBe(false);
+  });
+});
+
+describe("knowledge mechanics", () => {
+  const at = (conceptId: string, shift: number, correct = true, confidence: Confidence = "pretty") => ({ conceptId, shift, correct, confidence });
+  it("Concept Bingo: 5x5 with a free centre, every square a concept", () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `c${i}`);
+    const card = bingoCard(ids, 3);
+    expect(card).toHaveLength(25);
+    expect(card[12]).toBe(FREE);
+    for (const id of ids) expect(card.filter((c) => c === id)).toHaveLength(2);
+  });
+  it("a square marks only after 2 right retrievals in different Shifts, guesses don't count", () => {
+    expect(bingoMarked([at("a", 1), at("a", 1)]).has("a")).toBe(false);
+    expect(bingoMarked([at("a", 1), at("a", 2, true, "guess")]).has("a")).toBe(false);
+    expect(bingoMarked([at("a", 1), at("a", 2, false)]).has("a")).toBe(false);
+    expect(bingoMarked([at("a", 1), at("a", 2)]).has("a")).toBe(true);
+  });
+  it("lines count rows, columns and diagonals through the free centre", () => {
+    const card = [...Array(12).fill("x"), FREE, ...Array(12).fill("y")];
+    expect(bingoLines(card, new Set())).toBe(0);
+    expect(bingoLines(card, new Set(["x", "y"]))).toBe(12);
+  });
+  it("Calibration Keno scores per the printed rule, and honest marking is optimal", () => {
+    expect(kenoScore(true, true)).toEqual({ chips: 2, debt: 0 });
+    expect(kenoScore(true, false)).toEqual({ chips: 0, debt: 2 });
+    expect(kenoScore(false, false)).toEqual({ chips: 1, debt: 0 });
+    expect(kenoScore(false, true)).toEqual({ chips: 0, debt: 0 });
+    const ev = (marked: boolean, p: number) => { const r = kenoScore(marked, true), w = kenoScore(marked, false); return p * (r.chips - r.debt) + (1 - p) * (w.chips - w.debt); };
+    expect(ev(true, kenoBreakEven + 0.01)).toBeGreaterThan(ev(false, kenoBreakEven + 0.01));
+    expect(ev(true, kenoBreakEven - 0.01)).toBeLessThan(ev(false, kenoBreakEven - 0.01));
+  });
+  it("Mystery Fact: 1 in 2 on the roll; Calm mode unlocks exactly every second one (the expected value)", () => {
+    expect(factUnlocked(0.3, false, 1)).toBe(true);
+    expect(factUnlocked(0.7, false, 1)).toBe(false);
+    expect([1, 2, 3, 4, 5, 6].filter((n) => factUnlocked(0.99, true, n))).toHaveLength(3);
+  });
+  it("Readiness Odds is an estimate from the answers so far", () => {
+    const s = { ...fresh(), attempts: 4, correctCount: 4 };
+    expect(examForecast([fresh(), fresh()])).toEqual({ expected: 5, of: 10, answers: 0 });
+    expect(examForecast([s, s]).expected).toBe(8);
   });
 });

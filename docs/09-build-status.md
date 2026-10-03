@@ -2,7 +2,7 @@
 
 What the first commit (`7da60fc`, "init: initialize project with basic configuration and structure") actually ships, and where it differs from the plans in docs 01 to 08. When a plan doc and this doc disagree, this doc describes the code as it is.
 
-Status as of 2 October 2026. `npm test` passes: 4 files, 79 tests.
+Status as of 2 October 2026. `npm test` passes: 4 files, 88 tests.
 
 ## 1. Summary
 
@@ -69,6 +69,12 @@ You can leave a Shift mid-way (to the Shop, Report or Hub) and resume exactly wh
 | Hit pegs | Flash, then stay dimmed for the rest of that drop |
 | Peg Hands | Each answer scores chips x mult. Mult = streak x the Shift's best Peg Hand, capped at x10, applied to gain and debt alike. Hands come only from right answers this Shift: Flush x3 (5 right in one third of the unit), Straight x4 (right on 5 concepts in a row in unit order), Full House x5 (3 right at Certain plus 2 right at Pretty sure). Hands usually land late in a Shift, adding a few chips a Shift |
 | Synergies | Splitter plus Black Hole: split copies converge on the centre and warps land mid-board. Bumper plus Magnet: the bumper fires balls at the nearest bomb peg. Prize Wheel segments +1 at a x2 streak, +2 at x3 |
+| Concept Bingo | 5x5 card of concepts on the hub, free centre, each concept twice (a unit has 12). A square marks after 2 right Pretty sure or Certain answers in different Shifts. +5 per new line at the end of its Shift |
+| Calibration Keno | On the hub before a Shift, mark the concepts you expect to get right. Marked and right +2, marked and wrong +2 debt, unmarked and wrong +1, unmarked and right 0, settled at the end of the Shift. The rule is printed on screen. Marking pays above 60% sure, so honest marking wins. Mark nothing and it is off |
+| Mystery Fact | A right Certain answer unlocks a short fact (the first sentence of another explanation on that concept) 1 time in 2, odds shown. Calm mode unlocks exactly every second one. No chips. Listed in the report |
+| Shift Report Card | The Shift summary rows sit under scratch panels. The content is fixed before you scratch. Calm mode and reduced motion show it all at once |
+| Go Deeper | After a right answer only, one harder question on the same concept for +3 chips. No bet, no mastery change, once per answer, never on Exam Day |
+| Readiness Odds | Hub line: "Exam Day estimate: about n/10 right, from N answers. An estimate, not a prediction." Laplace-smoothed accuracy per concept |
 | Skill share | Shift summary meter: chips from correct answers, popup questions and calibration versus chips from buckets, the wheel and other specials. Target 80% or more |
 | Daily Shift cap | Default 6, adjustable 1 to 12 |
 

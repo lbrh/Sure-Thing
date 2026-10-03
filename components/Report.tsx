@@ -109,6 +109,17 @@ export default function Report() {
               <button className="btn" onClick={() => g.go("hub")}>Hub</button>
             </div>
           </Window>
+          {g.facts.length > 0 && (
+            <Window title="MYSTERY_FACTS.TXT" body="note">
+              <ul>
+                {g.facts.map((f, i) => (
+                  <li key={i}>
+                    <strong>{name(f.conceptId)}:</strong> {f.text}
+                  </li>
+                ))}
+              </ul>
+            </Window>
+          )}
           <Window title="CALIBRATION.GIF">
             <details>
               <summary>Calibration chart</summary>
