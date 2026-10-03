@@ -105,7 +105,7 @@ export interface Reveal {
   lostStreak: number; // the run a wrong answer just ended
 }
 
-export type Skin = "retro" | "chaos";
+export type Skin = "plain" | "retro" | "chaos";
 
 export interface Settings {
   skin: Skin;
@@ -234,7 +234,7 @@ const initial: Data = {
   bingoPaid: 0,
   inventory: { secondChance: 0, magnet: false, mega: false, quake: false, pegs: [] },
   shop: { boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] },
-  settings: { skin: "retro", calm: false, dailyCap: 6, sound: true, reducedMotion: false },
+  settings: { skin: "plain", calm: false, dailyCap: 6, sound: true, reducedMotion: false },
   shiftsDone: 0,
   shiftLog: { date: "", count: 0 },
   flagged: [],

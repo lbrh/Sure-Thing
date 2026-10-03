@@ -7,6 +7,7 @@ import { inProgress, priceCtx, sessionName, useDerived, useGame, SHIFT_MODS, SPE
 import { MAX_COPIES, priceOf, rerollCost, secondChanceMax, stakeHas } from "@/lib/economy";
 
 const SKINS: { id: Skin; file: string; name: string; blurb: string; swatch: string[] }[] = [
+  { id: "plain", file: "STANDARD.SKN", name: "Standard", blurb: "Plain and familiar. Light grey, white cards, one blue for buttons. Nothing blinks. The default.", swatch: ["#f3f4f6", "#ffffff", "#d1d5db", "#2563eb", "#111827"] },
   { id: "retro", file: "RETRO_95.SKN", name: "Retro 95", blurb: "Bevelled grey windows, navy title bars, hit counters. 1997, tastefully.", swatch: ["#c0c0c0", "#000080", "#1084d0", "#ffffcc", "#00ff00"] },
   { id: "chaos", file: "MAXIMUM_CHAOS.SKN", name: "MAXIMUM CHAOS", blurb: "Pop-ups nobody asked for, confetti, floating 3D words, fake RealPlayer, emoji buttons everywhere. A web designer's worst nightmare.", swatch: ["#ff00ff", "#00ff00", "#0000ff", "#ffff00", "#00ffff"] },
 ];

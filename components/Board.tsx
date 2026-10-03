@@ -6,20 +6,47 @@ import type { PegState } from "@/lib/engine";
 import { sfx } from "@/lib/sound";
 
 const STEP = 1000 / 60;
-// pure early-web colours on a black CRT
-const C = {
+// Retro and Chaos: pure early-web colours on a black CRT
+const RETRO = {
   solid: "#00ff00",
   shaky: "#ffff00",
   bomb: "#ff0000",
   cold: "#808080",
   neutral: "#000080",
   neutralEdge: "#1084d0",
-  white: "#ffffff",
+  white: "#ffffff", // outlines, flashes and the ball
   magenta: "#ff00ff",
   cyan: "#00ffff",
   orange: "#ff8000",
+  bg: "#000",
+  ink: "#000", // text shadows and outlines on top of colour
+  label: "#fff",
+  bucket: (m: number, frame: number, calm: boolean) => (m >= 10 ? (calm ? "#ff0000" : `hsl(${(frame * 8) % 360} 100% 50%)`) : m >= 3 ? "#ff0000" : m >= 2 ? "#00aa00" : m >= 1 ? "#0000ff" : "#808080"),
+  chute: (i: number, frame: number, calm: boolean) => (calm ? "#808080" : CHUTE_COLORS[(i + Math.floor(frame / 30)) % CHUTES]),
+  chuteIdle: "#202020",
+  wild: (frame: number, x: number, calm: boolean) => (calm ? "#ffffff" : `hsl(${(frame * 20 + x) % 360} 100% 55%)`),
 };
-const BUCKET_COLOR = (m: number) => (m >= 10 ? null : m >= 3 ? "#ff0000" : m >= 2 ? "#00aa00" : m >= 1 ? "#0000ff" : "#808080");
+// Standard: muted, flat, light grey. Nothing cycles or glows.
+const PLAIN: typeof RETRO = {
+  solid: "#16a34a",
+  shaky: "#d97706",
+  bomb: "#dc2626",
+  cold: "#9ca3af",
+  neutral: "#e5e7eb",
+  neutralEdge: "#9ca3af",
+  white: "#4b5563",
+  magenta: "#7c3aed",
+  cyan: "#0891b2",
+  orange: "#ea580c",
+  bg: "#f9fafb",
+  ink: "transparent",
+  label: "#374151",
+  bucket: (m) => (m >= 10 ? "#93c5fd" : m >= 3 ? "#bfdbfe" : m >= 2 ? "#dbeafe" : m >= 1 ? "#eff6ff" : "#f3f4f6"),
+  chute: () => "#e5e7eb",
+  chuteIdle: "#f3f4f6",
+  wild: () => "#2563eb",
+};
+let C = RETRO; // swapped per frame from the "plain" prop; the draw helpers below read it
 
 export interface BoardProps {
   pegs: PegSpec[];
@@ -34,6 +61,7 @@ export interface BoardProps {
   spark?: string[]; // concept ids whose pegs get a fuse-spark / defuse ring
   popIn?: boolean;
   calm?: boolean;
+  plain?: boolean; // Standard skin palette
   sound?: boolean;
   reducedMotion?: boolean;
   label: string;
@@ -90,7 +118,8 @@ export default function Board(props: BoardProps) {
         el.height = Math.round(cssW * (H / W) * dpr);
       }
       c.setTransform((dpr * cssW) / W, 0, 0, (dpr * cssW) / W, 0, 0);
-      c.fillStyle = "#000";
+      C = p.plain ? PLAIN : RETRO;
+      c.fillStyle = C.bg;
       c.fillRect(0, 0, W, H);
       const s = sim.current;
       const calm = p.calm ?? false;
@@ -132,17 +161,16 @@ export default function Board(props: BoardProps) {
       const mult = s?.mult ?? (showMega ? MEGA_MULTIPLIERS : MULTIPLIERS);
       const slotW = W / mult.length;
       mult.forEach((m, i) => {
-        const col = BUCKET_COLOR(m);
-        c.fillStyle = col ?? (calm ? "#ff0000" : `hsl(${(frame * 8) % 360} 100% 50%)`);
+        c.fillStyle = C.bucket(m, frame, calm);
         c.fillRect(i * slotW + 3, BUCKET_TOP + 2, slotW - 6, H - BUCKET_TOP - 4);
-        c.strokeStyle = "#fff";
+        c.strokeStyle = p.plain ? C.neutralEdge : "#fff";
         c.lineWidth = 2;
         c.strokeRect(i * slotW + 3, BUCKET_TOP + 2, slotW - 6, H - BUCKET_TOP - 4);
         c.font = `900 ${m >= 10 ? 16 : 13}px "Courier New", monospace`;
         c.textAlign = "center";
-        c.fillStyle = "#000";
+        c.fillStyle = C.ink;
         c.fillText(`x${m}`, i * slotW + slotW / 2 + 1, H - 13);
-        c.fillStyle = "#fff";
+        c.fillStyle = C.label;
         c.fillText(`x${m}`, i * slotW + slotW / 2, H - 14);
       });
 
@@ -192,7 +220,7 @@ export default function Board(props: BoardProps) {
           c.arc(b.body.position.x, b.body.position.y, 7, 0, Math.PI * 2);
           c.fillStyle = b.child ? C.cyan : C.white;
           c.fill();
-          c.strokeStyle = "#000";
+          c.strokeStyle = p.plain ? "#1f2937" : "#000";
           c.lineWidth = 1;
           c.stroke();
         }
@@ -204,9 +232,9 @@ export default function Board(props: BoardProps) {
           const wild = t.kind === "wild";
           c.font = wild ? `900 15px "Arial Black", Impact, sans-serif` : `900 ${t.kind === "bucket" ? 18 : 13}px "Courier New", monospace`;
           const y = t.y - t.age * 0.6;
-          c.fillStyle = "#000";
+          c.fillStyle = C.ink;
           c.fillText(t.text, t.x + 2, y + 2);
-          c.fillStyle = wild ? (calm ? C.white : `hsl(${(frame * 20 + t.x) % 360} 100% 55%)`) : t.kind === "minus" ? C.bomb : t.kind === "bucket" ? C.shaky : C.solid;
+          c.fillStyle = wild ? C.wild(frame, t.x, calm) : t.kind === "minus" ? C.bomb : t.kind === "bucket" ? C.shaky : C.solid;
           c.fillText(t.text, t.x, y);
         }
 
@@ -300,17 +328,17 @@ function drawChutes(c: CanvasRenderingContext2D, remaining: number, hover: numbe
     c.lineTo(cx + 11, CHUTE_BOTTOM);
     c.lineTo(cx - 11, CHUTE_BOTTOM);
     c.closePath();
-    c.fillStyle = remaining > 0 ? (calm ? "#808080" : CHUTE_COLORS[(i + Math.floor(frame / 30)) % CHUTES]) : "#202020";
+    c.fillStyle = remaining > 0 ? C.chute(i, frame, calm) : C.chuteIdle;
     c.fill();
     c.lineWidth = hover === i ? 3 : 1;
-    c.strokeStyle = hover === i ? "#ffffff" : "#000";
+    c.strokeStyle = hover === i ? (C === PLAIN ? "#2563eb" : "#ffffff") : C === PLAIN ? C.neutralEdge : "#000";
     c.stroke();
-    c.fillStyle = "#000";
+    c.fillStyle = C === PLAIN ? C.label : "#000";
     c.font = `900 13px "Courier New", monospace`;
     c.textAlign = "center";
     c.fillText(String(i + 1), cx, 22);
     if (remaining > 0 && hover === i) {
-      c.fillStyle = "#fff";
+      c.fillStyle = C === PLAIN ? "#2563eb" : "#fff";
       c.fillText("▼", cx, CHUTE_BOTTOM + 14 + (calm ? 0 : (frame % 20) / 5));
     }
   }

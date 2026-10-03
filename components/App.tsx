@@ -42,7 +42,9 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.calm = g.settings.calm ? "1" : "";
     document.documentElement.dataset.chaos = chaos ? "1" : "";
-  }, [g.settings.calm, chaos]);
+    document.documentElement.dataset.skin = g.settings.skin;
+  }, [g.settings.calm, chaos, g.settings.skin]);
+  const plain = g.settings.skin === "plain";
 
   if (!g.unit || g.screen === "setup")
     return (
@@ -55,7 +57,7 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Marquee items={MARQUEE} />
+      {!plain && <Marquee items={MARQUEE} />}
       {chaos && <Banners />}
       <header className="topbar">
         <button className="logo rainbow" onClick={() => g.go("hub")} aria-label="Sure Thing, go to hub">
@@ -151,7 +153,7 @@ function MiniBoard({ reduced, popIn, onPeg }: { reduced: boolean; popIn?: boolea
   const concepts = useGame((s) => s.concepts);
   const mega = useGame((s) => s.inventory.mega);
   const label = `Knowledge board. ${concepts.map((c) => `${c.name}: ${STATE_LABEL[states[c.id]]}`).join(". ")}.`;
-  return <Board pegs={pegs} states={states} popIn={popIn && !reduced} showMega={mega} calm={settings.calm} reducedMotion={reduced} onPegClick={onPeg} label={label} />;
+  return <Board pegs={pegs} states={states} popIn={popIn && !reduced} showMega={mega} calm={settings.calm} plain={settings.skin === "plain"} reducedMotion={reduced} onPegClick={onPeg} label={label} />;
 }
 
 const ICONS: Record<PegState, React.ReactNode> = {
@@ -279,6 +281,7 @@ function PegCard({ peg, onClose }: { peg: PegSpec; onClose: () => void }) {
 
 function Setup() {
   const setup = useGame((s) => s.setup);
+  const chaosSkin = useGame((s) => !s.settings.calm && s.settings.skin === "chaos");
   const [name, setName] = useState("Databases 101");
   const [date, setDate] = useState(() => {
     const d = new Date();
@@ -335,7 +338,7 @@ function Setup() {
         </form>
       </Window>
       <ColorSquares />
-      <EmojiSwarm count={18} />
+      {chaosSkin && <EmojiSwarm count={18} />}
       <p className="construction center">
         <span className="construction-label">No real money, ever. Chips can&apos;t be bought, sold or cashed out.</span>
       </p>
@@ -805,6 +808,7 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips:
           drop={drop}
           spark={spark}
           calm={g.settings.calm}
+          plain={g.settings.skin === "plain"}
           sound={sound}
           reducedMotion={reduced}
           onHold={(h, release) => setHold({ h, release })}
