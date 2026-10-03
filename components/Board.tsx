@@ -24,9 +24,9 @@ const BUCKET_COLOR = (m: number) => (m >= 10 ? null : m >= 3 ? "#ff0000" : m >= 
 export interface BoardProps {
   pegs: PegSpec[];
   states: Record<string, PegState>;
-  drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean } | null;
+  drop?: { balls: number; seed: number; magnet: boolean; mega: boolean; quake: boolean; fever?: boolean } | null;
   showMega?: boolean; // static preview of next Shift's mega bucket
-  onDone?: (chips: number, skill: number) => void;
+  onDone?: (chips: number, skill: number, armed: string[]) => void;
   /** Captured ball: show a popup, then call release(result). Leave unset to auto-play. Calm mode pays the wheel's expected value without asking. */
   onHold?: (hold: Hold, release: (r: HoldResult) => void) => void;
   onCheer?: (level: 1 | 2 | 3, value: number) => void;
@@ -46,13 +46,14 @@ export default function Board(props: BoardProps) {
   const doneRef = useRef(false);
   const [running, setRunning] = useState(false);
   const [left, setLeft] = useState(0);
+  const [boardMult, setBoardMult] = useState(1);
   const hover = useRef(-1);
   const live = useRef(props);
   live.current = props;
 
   const statesKey = JSON.stringify(states);
   const frozenStates = useMemo(() => states, [statesKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const dropKey = drop ? `${drop.balls}:${drop.seed}:${drop.magnet}:${drop.mega}:${drop.quake}` : "";
+  const dropKey = drop ? `${drop.balls}:${drop.seed}:${drop.magnet}:${drop.mega}:${drop.quake}:${drop.fever}` : "";
 
   useEffect(() => {
     const el = canvas.current;
@@ -69,12 +70,13 @@ export default function Board(props: BoardProps) {
     sim.current = drop && drop.balls > 0 ? createDrop(pegs, frozenStates, { ...drop, manual: !reducedMotion, calm: props.calm }) : null;
     setRunning(Boolean(sim.current));
     setLeft(sim.current?.remaining ?? 0);
+    setBoardMult(1);
 
     const finish = () => {
       if (doneRef.current) return;
       doneRef.current = true;
       setRunning(false);
-      live.current.onDone?.(sim.current?.chips ?? 0, sim.current?.skill ?? 0);
+      live.current.onDone?.(sim.current?.chips ?? 0, sim.current?.skill ?? 0, sim.current?.armed ?? []);
     };
     if (drop && drop.balls === 0) queueMicrotask(finish);
     if (sim.current && reducedMotion) sim.current.resolve();
@@ -115,7 +117,9 @@ export default function Board(props: BoardProps) {
           if (e.type === "cheer") {
             p.onCheer?.(e.level, e.value);
             if (p.sound && e.level >= 2) sfx.mega();
-          } else if (!pegSound && p.sound) {
+          } else if (e.type === "boardMult") setBoardMult(e.mult);
+          else if (e.type === "armed") continue;
+          else if (!pegSound && p.sound) {
             pegSound = true; // at most one tick per frame
             sfx.peg(e.state);
           }
@@ -159,8 +163,11 @@ export default function Board(props: BoardProps) {
       for (let i = 0; i < visible; i++) {
         const pg = pegs[i];
         const flash = s?.flashes.get(i) ?? 0;
+        // hit pegs flash, then stay dimmed for the rest of the drop
+        c.globalAlpha = !flash && s?.fallen.has(i) ? 0.35 : 1;
         if (pg.special) drawSpecial(c, pg.x, pg.y, pg.special, frame, calm);
         else drawPeg(c, pg.x, pg.y, pg.conceptId ? frozenStates[pg.conceptId] ?? "cold" : "neutral");
+        c.globalAlpha = 1;
         if (flash) {
           c.strokeStyle = C.white;
           c.lineWidth = 2;
@@ -253,6 +260,12 @@ export default function Board(props: BoardProps) {
             <span className="lbl">BALLS</span>
             {left}
           </span>
+          {boardMult > 1 && (
+            <span className="counter" aria-live="polite">
+              <span className="lbl">BOARD</span>x{boardMult}
+            </span>
+          )}
+          {drop?.fever && <span className="badge hot">FEVER</span>}
           <button className="btn small" onClick={() => sim.current?.resolve()}>
             Skip
           </button>

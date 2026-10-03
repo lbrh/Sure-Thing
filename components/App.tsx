@@ -9,7 +9,7 @@ import { ColorSquares, Counter, Marquee, Window } from "./ui";
 import Chaos, { Banners, EmojiSwarm, confetti } from "./Chaos";
 import Seal, { sealDo } from "./Seal";
 import { inProgress, useDerived, useGame, SHIFT_LENGTH } from "@/lib/store";
-import { layoutPegs, placeSpecials, type Hold, type HoldResult, type PegSpec } from "@/lib/board";
+import { FEVER_BALLS, FEVER_FLAT, FEVER_MULTIPLIERS, layoutPegs, placeSpecials, type Hold, type HoldResult, type PegSpec } from "@/lib/board";
 import { badge, hashString, pegState, streakMultiplier, type Confidence, type OptionId, type PegState } from "@/lib/engine";
 import { breakEven, DEBT, GAIN, skillShare, SKILL_TARGET } from "@/lib/economy";
 import { CONF_LABEL, LINES, terms } from "@/lib/copy";
@@ -568,7 +568,7 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
   const g = useGame();
   const r = g.reveal;
   const s = g.session;
-  const [won, setWon] = useState<{ chips: number; skill: number } | null>(null);
+  const [won, setWon] = useState<{ chips: number; skill: number; armed: string[]; feverFlat: boolean } | null>(null);
   const exam = s?.kind === "exam";
 
   useEffect(() => {
@@ -677,12 +677,12 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
           ) : (
             <div className="row between dropdone">
               {s.pendingBalls > 0 && (
-                <span className="counter big" aria-label={`Plus ${s.pendingChips + won.chips} ${t.chips}`}>
+                <span className="counter big" aria-label={`Plus ${s.pendingChips + won.chips + (won.feverFlat ? FEVER_FLAT : 0)} ${t.chips}`}>
                   <span className="lbl">+{t.Chips.toUpperCase()}</span>
-                  {s.pendingChips} + {won.chips} = {s.pendingChips + won.chips}
+                  {s.pendingChips} + {won.chips + (won.feverFlat ? FEVER_FLAT : 0)} = {s.pendingChips + won.chips + (won.feverFlat ? FEVER_FLAT : 0)}
                 </span>
               )}
-              <button className={`btn big ${r.bombPlanted ? "danger" : "success"}`} onClick={() => g.finishDrop(won.chips, won.skill)} autoFocus>
+              <button className={`btn big ${r.bombPlanted ? "danger" : "success"}`} onClick={() => g.finishDrop(won.chips, won.skill, won.armed, won.feverFlat)} autoFocus>
                 {last ? "Finish" : "Next"}
               </button>
             </div>
@@ -694,7 +694,7 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
   );
 }
 
-function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips: number; skill: number }) => void }) {
+function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips: number; skill: number; armed: string[]; feverFlat: boolean }) => void }) {
   const g = useGame();
   const s = g.session!;
   const r = g.reveal;
@@ -707,7 +707,11 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips:
   const sound = g.settings.sound && !g.settings.calm;
   const spark = r && (r.bombPlanted || r.bombDefused) ? [r.conceptId] : [];
   const { magnet, mega: megaMod, quake } = g.inventory;
-  const drop = useMemo(() => ({ balls: s.pendingBalls, seed: s.dropSeed, magnet, mega: megaMod, quake }), [s.pendingBalls, s.dropSeed, magnet, megaMod, quake]);
+  // Fever never plays as an animation in Calm mode or with reduced motion: you get a plain summary instead
+  const feverFlat = Boolean(s.fever) && (g.settings.calm || reduced);
+  const fever = Boolean(s.fever) && !feverFlat;
+  const balls = feverFlat ? s.pendingBalls - FEVER_BALLS : s.pendingBalls;
+  const drop = useMemo(() => ({ balls, seed: s.dropSeed, magnet, mega: megaMod, quake, fever }), [balls, s.dropSeed, magnet, megaMod, quake, fever]);
 
   // sized to the payout: a small bonus gets a small cheer, only the biggest shakes
   const onCheer = (level: 1 | 2 | 3, value: number) => {
@@ -746,13 +750,15 @@ function DropPanel({ reduced, onDone }: { reduced: boolean; onDone: (r: { chips:
           reducedMotion={reduced}
           onHold={(h, release) => setHold({ h, release })}
           onCheer={chaos ? onCheer : undefined}
-          onDone={(chips, skill) => {
+          onDone={(chips, skill, armed) => {
             setHold(null);
-            onDone({ chips, skill });
+            onDone({ chips, skill, armed, feverFlat });
           }}
           label={`Ball drop with ${s.pendingBalls} balls`}
         />
-        <p className="small">Bonus ball: solid +2, shaky +1, bomb −2. Centre buckets multiply more. Skip drops the rest down the middle.</p>
+        {fever && <p className="notice">FEVER! That was the last bomb on your board. {FEVER_BALLS} extra balls into five Fever buckets: x{FEVER_MULTIPLIERS.join(", x")}.</p>}
+        {feverFlat && <p className="notice">Fever round: the last bomb is gone. Summary: {FEVER_BALLS} extra balls at the average Fever bucket pay +{FEVER_FLAT} {t.chips}.</p>}
+        <p className="small">Bonus ball: solid +2, shaky +1, bomb −2. Hitting a bomb peg brings its retest up next, and the board multiplier rises as bomb pegs fall (x2 at 5 or fewer standing, x3 at 2 or fewer). Hit pegs dim for the rest of the drop. Skip drops the rest down the middle.</p>
       </Window>
       {hold && (
         <HoldModal

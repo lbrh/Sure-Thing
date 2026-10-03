@@ -11,7 +11,7 @@ import {
   betOutcome, calibrationBonus, defusePayout, examPotPayout, POT_PER_BOMB, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
   type PriceCtx,
 } from "./economy";
-import type { OwnedPeg, SpecialKind } from "./board";
+import { FEVER_BALLS, FEVER_FLAT, type OwnedPeg, type SpecialKind } from "./board";
 
 export type Screen = "setup" | "intro" | "hub" | "draw" | "question" | "reveal" | "board" | "summary" | "shop" | "report" | "settings";
 export type SessionKind = "shift" | "defuse" | "exam";
@@ -52,6 +52,8 @@ export interface Session {
   skillChips: number; // from correct answers and calibration
   chanceChips: number; // from buckets, the wheel and other specials
   debtAdded: number;
+  fever?: boolean; // the waiting drop is a Fever round
+  feverChips?: number;
   calBonus?: number; // paid at the end of a Shift
   interest?: number;
   bombsPlanted: string[];
@@ -81,6 +83,7 @@ export interface Reveal {
   bombPlanted: boolean;
   bombDefused: boolean;
   potPaid?: number; // Ledger Pot share paid for this defuse
+  fever?: boolean; // that was the last bomb on the board
   bombWaiting?: boolean; // right on a bomb that hasn't waited a Shift yet
   secondChance: boolean;
   line: string;
@@ -108,6 +111,7 @@ interface Data {
   debt: number; // Ledger debt: no floor, never comes out of chips
   pot: number; // Ledger Pot: +5 per bomb planted, paid out by defusing and on Exam Day
   bombLedger: Record<string, BombEntry>;
+  armed: string[]; // bomb concepts a ball hit: their retest leads the next Draw
   inventory: { secondChance: number; magnet: boolean; mega: boolean; quake: boolean; pegs: OwnedPeg[] };
   shop: ShopState;
   settings: Settings;
@@ -146,7 +150,7 @@ interface Actions {
   choose(conceptId: string): void;
   answer(chosen: OptionId, confidence: Confidence): void;
   continueReveal(): void;
-  finishDrop(chips: number, skill?: number): void;
+  finishDrop(chips: number, skill?: number, armed?: string[], feverFlat?: boolean): void;
   buy(item: ShopItem, conceptId?: string): void;
   flag(questionId: string): void;
   updateSettings(s: Partial<Settings>): void;
@@ -165,6 +169,7 @@ const initial: Data = {
   debt: 0,
   pot: 0,
   bombLedger: {},
+  armed: [],
   inventory: { secondChance: 0, magnet: false, mega: false, quake: false, pegs: [] },
   shop: { boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] },
   settings: { skin: "retro", calm: false, dailyCap: 6, sound: true, reducedMotion: false },
@@ -193,6 +198,9 @@ export const useGame = create<Data & Actions>()(
 
       const showDraw = (session: Session) => {
         const offer = drawOffer(states(), session.recent, days(), get().attempts.length);
+        // a bomb peg a ball hit arms its retest: it takes the last slot unless it was just asked
+        const armed = get().armed.find((c) => get().conceptState[c]?.bombActive && !offer.includes(c) && !session.recent.slice(-2).includes(c));
+        if (armed) offer[offer.length - 1] = armed;
         set({ session: { ...session, offer }, screen: "draw" });
       };
 
@@ -331,6 +339,7 @@ export const useGame = create<Data & Actions>()(
           const defusable = !planted || (s.shiftsDone > planted.shift && planted.questionId !== q.id);
           const after = updateState(before, { confidence, correct, defusable }, days(), now);
           const bombDefused = before.bombActive && !after.bombActive;
+          const fever = bombDefused && !exam && s.concepts.every((c) => c.id === q.conceptId || !s.conceptState[c.id]?.bombActive);
           const bombWaiting = before.bombActive && after.bombActive && correct && confidence !== "guess" && !defusable;
           const potPaid = bombDefused && planted ? defusePayout(planted.share) : 0;
           const bombLedger = { ...s.bombLedger };
@@ -353,15 +362,17 @@ export const useGame = create<Data & Actions>()(
             pot: s.pot - potPaid + (out.plantBomb ? POT_PER_BOMB : 0),
             chips: s.chips + potPaid,
             bombLedger,
+            armed: s.armed.filter((c) => c !== q.conceptId),
             streak,
-            reveal: { ...base, balls: out.balls, chips: out.chips, debt: out.debt, mult, bombPlanted: out.plantBomb, bombDefused, potPaid, bombWaiting, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
+            reveal: { ...base, balls: out.balls, chips: out.chips, debt: out.debt, mult, bombPlanted: out.plantBomb, bombDefused, potPaid, bombWaiting, fever, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
             session: {
               ...session,
               answered: session.answered + 1,
               recent: [...session.recent, q.conceptId],
               retrying: false,
               eliminated: [],
-              pendingBalls: out.balls,
+              pendingBalls: out.balls + (fever ? FEVER_BALLS : 0),
+              fever,
               pendingChips: out.chips,
               dropSeed: s.attempts.length + 1,
               mult,
@@ -384,9 +395,12 @@ export const useGame = create<Data & Actions>()(
           // Shift and Defuser answers drop on the board beside the reveal; finishDrop moves on
         },
 
-        finishDrop(raw, rawSkill = 0) {
+        finishDrop(raw, rawSkill = 0, armed = [], feverFlat = false) {
           const { session } = get();
           if (!session) return;
+          // Calm mode and reduced motion: Fever is a plain summary paying its expected value
+          if (feverFlat && session.fever) raw += FEVER_FLAT;
+          if (armed.length) set((s) => ({ armed: [...new Set([...s.armed, ...armed])] }));
           // the multiplier rewards knowing, so it scales the bet payout (already in pendingChips) but never the board's luck
           const board = Math.round(raw);
           const boardSkill = Math.min(board, Math.round(rawSkill)); // popup questions answered right
@@ -397,6 +411,7 @@ export const useGame = create<Data & Actions>()(
             pendingBalls: 0,
             pendingChips: 0,
             mult: 1,
+            fever: false,
             chipsEarned: session.chipsEarned + answer + board,
             skillChips: (session.skillChips ?? 0) + answer + boardSkill,
             chanceChips: (session.chanceChips ?? 0) + board - boardSkill,

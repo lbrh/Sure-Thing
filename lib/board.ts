@@ -8,6 +8,20 @@ export const PEG_R = 7;
 export const BALL_R = 7;
 export const MULTIPLIERS = [0.5, 1, 2, 3, 2, 1, 0.5];
 export const MEGA_MULTIPLIERS = [0.5, 1, 2, 10, 2, 1, 0.5];
+/** Fever: the bonus round after the last bomb on the board is defused. Five buckets, three extra balls. */
+export const FEVER_MULTIPLIERS = [2, 3, 5, 3, 2];
+export const FEVER_BALLS = 3;
+/** Calm mode and reduced motion skip the Fever drop for a plain summary paying its expected value: 3 balls at the average Fever bucket. */
+export const FEVER_FLAT = Math.round(FEVER_BALLS * (FEVER_MULTIPLIERS.reduce((a, b) => a + b, 0) / FEVER_MULTIPLIERS.length));
+/**
+ * Board multiplier as bombs fall in a drop: x2 once 5 or fewer bombs are left standing, x3 at 2 or fewer.
+ * A bomb falls when a ball hits either of its two pegs. A comeback mechanic for bomb-heavy boards: it only runs on a board
+ * that starts the drop with 6 or more bombs,
+ * and at least one has to fall first. Lighter boards stay at x1, which keeps luck from outweighing knowing.
+ */
+export const BOARD_MULT_MIN = 6;
+export const boardMultiplier = (start: number, fallen: number) =>
+  start < BOARD_MULT_MIN || fallen === 0 ? 1 : start - fallen <= 2 ? 3 : start - fallen <= 5 ? 2 : 1;
 export const YIELD: Record<PegState | "neutral", number> = { cold: 0, shaky: 1, solid: 2, bomb: -2, neutral: 0 };
 // Tuned with tests/tuning.test.ts: a ball is worth (BASE + sum of peg yields) * bucket * SCALE.
 export const BASE = 1;
@@ -125,7 +139,11 @@ export interface HoldResult {
   mult?: number;
 }
 
-export type DropEvent = { type: "peg"; state: PegState | "neutral" | SpecialKind } | { type: "cheer"; level: 1 | 2 | 3; value: number };
+export type DropEvent =
+  | { type: "peg"; state: PegState | "neutral" | SpecialKind }
+  | { type: "cheer"; level: 1 | 2 | 3; value: number }
+  | { type: "armed"; conceptId: string }
+  | { type: "boardMult"; mult: number };
 
 export interface DropOptions {
   balls: number;
@@ -135,6 +153,7 @@ export interface DropOptions {
   quake?: boolean; // gravity wobbles sideways
   manual?: boolean; // player drops each ball by picking a chute; otherwise balls auto-drop near the centre
   calm?: boolean; // chance devices resolve to their expected value
+  fever?: boolean; // Fever round: five Fever buckets
 }
 
 /** Seven drop chutes across the top, one above each bucket. */
@@ -158,7 +177,7 @@ export function autoResult(h: Pick<Hold, "kind" | "seed" | "segments">, calm = f
 export type Drop = ReturnType<typeof createDrop>;
 
 export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, opts: DropOptions) {
-  const mult = opts.mega ? MEGA_MULTIPLIERS : MULTIPLIERS;
+  const mult = opts.fever ? FEVER_MULTIPLIERS : opts.mega ? MEGA_MULTIPLIERS : MULTIPLIERS;
   const rand = rng(opts.seed);
   const engine = Matter.Engine.create({ gravity: { x: 0, y: 1 } });
   const world = engine.world;
@@ -190,6 +209,10 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
   const holds: Hold[] = [];
   const texts: FloatText[] = [];
   const flashes = new Map<number, number>(); // peg index -> frames left
+  const fallen = new Set<number>(); // pegs hit this drop: they flash, then stay dimmed until the drop ends
+  const armed = new Set<string>(); // bomb concepts a ball hit: their retest comes up next
+  const bombs = new Set(pegs.flatMap((p) => (p.conceptId && !p.special && stateOf(p) === "bomb" ? [p.conceptId] : [])));
+  let boardMult = 1;
   const events: DropEvent[] = [];
   const landed = mult.map(() => 0); // balls per bucket, for fairness checks
   let chips = 0;
@@ -228,7 +251,7 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     if (b.done || b.held) return;
     landed[bucket]++;
     const base = Math.max(0, BASE + b.total) * SCALE;
-    payout(b, bucket * slotW + slotW / 2, H - 40, Math.round(base * mult[bucket]), Math.round(base));
+    payout(b, bucket * slotW + slotW / 2, H - 40, Math.round(base * mult[bucket] * boardMult), Math.round(base));
   };
 
   const say = (i: number, text: string) => texts.push({ x: pegs[i].x, y: pegs[i].y - 14, text, kind: "wild", age: 0 });
@@ -258,8 +281,16 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     if (b.hit.has(i) || b.held || b.done) return;
     b.hit.add(i);
     flashes.set(i, 18);
+    fallen.add(i);
     if (pegs[i].special) return special(b, i);
     const st = stateOf(pegs[i]);
+    if (st === "bomb" && pegs[i].conceptId) {
+      armed.add(pegs[i].conceptId!);
+      events.push({ type: "armed", conceptId: pegs[i].conceptId! });
+      const m = boardMultiplier(bombs.size, armed.size);
+      if (m !== boardMult) events.push({ type: "boardMult", mult: m });
+      boardMult = m;
+    }
     const y = YIELD[st];
     b.total += y;
     events.push({ type: "peg", state: st });
@@ -362,7 +393,14 @@ export function createDrop(pegs: PegSpec[], states: Record<string, PegState>, op
     holds,
     texts,
     flashes,
+    fallen,
     events,
+    get armed() {
+      return [...armed];
+    },
+    get boardMult() {
+      return boardMult;
+    },
     stateOf,
     mult,
     landed,

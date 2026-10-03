@@ -117,7 +117,11 @@ describe("golden path", () => {
     expect(g().chips).toBe(chipsPre + 3);
     expect(g().pot).toBe(2);
     expect(g().debt).toBe(12); // defusing never refunds debt
-    drop();
+    expect(g().reveal!.fever).toBe(true); // that was the last bomb on the board: Fever, after the defuse lands
+    expect(g().session!.pendingBalls).toBe(1 + 3);
+    const calmChips = g().chips + g().session!.pendingChips;
+    g().finishDrop(0, 0, [], true); // Calm mode or reduced motion: plain summary at the expected value
+    expect(g().chips).toBe(calmChips + 9);
     for (let i = 1; i < SHIFT_LENGTH; i++) {
       g().choose(g().session!.offer[0]);
       answer(i % 2 ? "certain" : "guess", i !== 3);

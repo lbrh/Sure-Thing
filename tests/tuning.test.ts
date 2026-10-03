@@ -1,7 +1,7 @@
 // Headless tuning sim (MVP plan 4.4): 1000 balls per board state.
 import { describe, expect, it } from "vitest";
 import Matter from "matter-js";
-import { CHUTES, MIN_IMPACT, createDrop, layoutPegs, placeSpecials } from "@/lib/board";
+import { boardMultiplier, CHUTES, FEVER_FLAT, FEVER_MULTIPLIERS, MIN_IMPACT, createDrop, layoutPegs, placeSpecials } from "@/lib/board";
 import { rng, streakMultiplier, type Attempt, type Confidence, type PegState } from "@/lib/engine";
 import {
   bestBet, betOutcome, evNet, calibrationBonus, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, MAX_COPIES, priceOf, skillShare, SKILL_TARGET, STUDY_BASE,
@@ -273,4 +273,38 @@ describe("multi-Shift shop pacing", () => {
     for (const tool of ["secondChance", "defuser"] as const)
       for (let u = 0; u < 100; u++) expect(priceOf(tool, { boughtThisRun: {}, usesThisShift: { [tool]: u }, copies: {}, tier: 4, index: 2 }).price).toBeLessThanOrEqual(3 * STUDY_BASE[tool]);
   });
+});
+
+describe("bomb targets, board multiplier and Fever", () => {
+  it("board multiplier: x2 at 5 or fewer bombs standing, x3 at 2 or fewer, on boards starting with 6 or more", () => {
+    expect(boardMultiplier(0, 0)).toBe(1);
+    expect(boardMultiplier(4, 3)).toBe(1); // light boards never get it
+    expect(boardMultiplier(8, 0)).toBe(1);
+    expect(boardMultiplier(8, 1)).toBe(1);
+    expect(boardMultiplier(8, 3)).toBe(2);
+    expect(boardMultiplier(8, 6)).toBe(3);
+  });
+  it("balls that hit bomb pegs arm their retests and every hit peg stays dimmed for the drop", () => {
+    let armed = 0, raised = 0;
+    for (let s = 1; s <= 40; s++) {
+      const d = createDrop(pegs, bombHeavy, { balls: 3, seed: s });
+      d.resolve();
+      armed += d.armed.length;
+      raised += d.boardMult > 1 ? 1 : 0;
+      for (const b of d.balls) for (const i of b.hit) expect(d.fallen.has(i)).toBe(true);
+    }
+    expect(armed).toBeGreaterThan(0);
+    expect(raised).toBeGreaterThan(0);
+  });
+  it("Fever drops land in five Fever buckets and pay more than a normal drop", () => {
+    let fever = 0, normal = 0;
+    for (let s = 1; s <= 40; s++) {
+      const d = createDrop(pegs, mixed, { balls: 4, seed: s, fever: true });
+      fever += d.resolve();
+      expect(d.mult).toEqual(FEVER_MULTIPLIERS);
+      normal += createDrop(pegs, mixed, { balls: 4, seed: s }).resolve();
+    }
+    expect(fever).toBeGreaterThan(normal * 1.5);
+  });
+  it("Calm mode's Fever summary pays the expected value", () => expect(FEVER_FLAT).toBe(9));
 });

@@ -59,14 +59,14 @@ Peggle is the closest relative of our board: aim, shoot, bounce, clear target pe
 
 | Peggle mechanic | Sure Thing version | Guardrail fit |
 |---|---|---|
-| Orange pegs you must clear | Bomb and Shaky pegs light up when hit. Light all bombs in one Shift for a bonus. Mastery stays tied to answers, the board only pays chips | Good |
-| Multiplier rises as targets clear | The bucket multiplier steps up as more of your concepts reach Solid | Good, rewards learning |
+| Orange pegs you must clear | Built: a ball hitting a bomb peg arms its retest in the next Draw. Mastery stays tied to answers, the board only pays chips | Good |
+| Multiplier rises as targets clear | Built: x2 at 5 or fewer bombs standing in a drop, x3 at 2 or fewer, only on boards with 6 or more bombs | Good, a comeback that does not lift luck on ordinary boards |
 | Free Ball bucket that slides along the bottom | A moving bucket that returns the ball for another drop | Good |
 | Purple peg that moves each shot | A "hot concept" peg that changes each drop and pays double, ideally on a due concept | Good |
 | Green power pegs and Master powers (Super Guide, Spooky Ball, Multiball, Flippers) | Power pegs that grant one-drop powers. Super Guide (a trajectory preview) is a natural reward for mastery | Good |
 | Style shots (Long Shot, Off the Wall, Bank Shot) | Small chip bonuses for skilful aiming with the chutes, or a free-angle launcher replacing the 7 chutes | Good |
-| Extreme Fever (slow motion and zoom on the last orange peg, then bonus buckets) | A finale when the last bomb on the board is defused | Careful: slow motion as the ball nears a target is a near-miss effect (guardrail 5). Trigger it only after the hit lands, never before |
-| Pegs vanish after a shot | Hit pegs flash and dim for the rest of that drop | Good |
+| Extreme Fever (slow motion and zoom on the last orange peg, then bonus buckets) | Built: defusing the last bomb turns that drop into a Fever round with five Fever buckets. No slow motion or zoom at all. Calm mode and reduced motion get a plain summary | Good |
+| Pegs vanish after a shot | Built: hit pegs flash and dim for the rest of that drop | Good |
 
 ## 3. Ideas from casino and gambling games
 

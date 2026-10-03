@@ -2,7 +2,7 @@
 
 What the first commit (`7da60fc`, "init: initialize project with basic configuration and structure") actually ships, and where it differs from the plans in docs 01 to 08. When a plan doc and this doc disagree, this doc describes the code as it is.
 
-Status as of 2 October 2026. `npm test` passes: 4 files, 70 tests.
+Status as of 2 October 2026. `npm test` passes: 4 files, 75 tests.
 
 ## 1. Summary
 
@@ -63,6 +63,10 @@ You can leave a Shift mid-way (to the Shop, Report or Hub) and resume exactly wh
 | Streak multiplier | Counts correct answers only. The next answer plays at x1, x1.5, x2, x2.5, then capped at x3, applied to its gain and its debt alike, never to the bonus ball. A wrong answer resets it. Exam Day leaves it alone. Second Chance keeps it safe |
 | Calibration | Guess 0.35, Pretty sure 0.67, Certain 0.92. Gap over the last 20 answers, grade 0 to 3. Each Shift ends with +3 chips per grade point. The Readiness Report shows the grade and the Brier score |
 | Ledger Pot | Every bomb planted adds 5 chips to a visible pot (POT hit counter, hub, Collector lines). A bomb defuses only on a right Pretty sure or Certain answer to a different question at least one Shift after planting, and that pays 50% of its share. Exam Day pays the rest scaled by readiness and by earned / (earned + debt). The pot never costs chips |
+| Bomb targets | A ball that hits a bomb peg arms that concept's retest: it takes the last slot of the next Draw unless it was just asked |
+| Board multiplier | Bucket payouts in a drop are multiplied as bombs fall (a bomb falls when either of its pegs is hit): x2 at 5 or fewer standing, x3 at 2 or fewer. Only on boards that start the drop with 6 or more bombs, so it is a comeback for bomb-heavy boards and never lifts luck on an ordinary board |
+| Fever | Defusing the last bomb on the board makes that answer's drop a Fever round: 3 extra balls into five Fever buckets (x2, x3, x5, x3, x2). Starts only after the defuse lands. No slow motion or zoom ever. Calm mode and reduced motion get a plain summary paying +9 (the expected value) |
+| Hit pegs | Flash, then stay dimmed for the rest of that drop |
 | Skill share | Shift summary meter: chips from correct answers, popup questions and calibration versus chips from buckets, the wheel and other specials. Target 80% or more |
 | Daily Shift cap | Default 6, adjustable 1 to 12 |
 
