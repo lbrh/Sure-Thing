@@ -73,9 +73,9 @@ describe("golden path", () => {
       answer("pretty");
       drop();
     }
-    expect(asked.slice(3)).toContain("nulls"); // retested in the same Shift
-    expect(g().conceptState.nulls.bombActive).toBe(false); // and defused with a different question
-    expect(g().session!.bombsDefused).toContain("nulls");
+    expect(asked.slice(3)).toContain("nulls"); // retested in the same Shift...
+    expect(g().conceptState.nulls.bombActive).toBe(true); // ...but a bomb needs a Shift's wait before it defuses
+    expect(g().pot).toBe(5);
     expect(g().screen).toBe("summary");
     expect(g().shiftsDone).toBe(1);
     expect(g().chips).toBeGreaterThanOrEqual(15); // enough for a Defuser, as in the demo script
@@ -97,18 +97,26 @@ describe("golden path", () => {
 
     // Shift 2: Second Chance absorbs the first miss (no penalty, no bomb, retry)
     g().startShift();
-    g().choose(g().session!.offer[0]);
+    expect(g().session!.offer[0]).toBe("nulls"); // the waiting bomb leads the Draw
+    g().choose("nulls");
     const q = g().questions.find((x) => x.id === g().session!.questionId)!;
+    expect(q.id).not.toBe("nulls-1");
     const chipsBefore = g().chips;
     const debtBefore = g().debt;
     g().answer(wrongOf(q.correct), "certain");
     expect(g().reveal!.secondChance).toBe(true);
     expect(g().chips).toBe(chipsBefore);
     expect(g().debt).toBe(debtBefore);
-    expect(g().conceptState[q.conceptId].bombActive).toBe(false);
+    expect(g().pot).toBe(5); // no new bomb planted
     g().continueReveal();
     expect(g().screen).toBe("question");
+    const chipsPre = g().chips;
     answer("certain");
+    expect(g().reveal!.bombDefused).toBe(true);
+    expect(g().reveal!.potPaid).toBe(3); // half of the bomb's 5, rounded
+    expect(g().chips).toBe(chipsPre + 3);
+    expect(g().pot).toBe(2);
+    expect(g().debt).toBe(12); // defusing never refunds debt
     drop();
     for (let i = 1; i < SHIFT_LENGTH; i++) {
       g().choose(g().session!.offer[0]);
@@ -140,7 +148,9 @@ describe("golden path", () => {
     }
     expect(g().screen).toBe("report");
     expect(g().exam).toMatchObject({ total: 10, correct: 6 });
-    expect(g().chips).toBe(chips);
+    expect(g().pot).toBe(0); // Exam Day pays out the rest, never costs anything
+    expect(g().chips).toBe(chips + g().exam!.potPaid!);
+    expect(g().exam!.potPaid!).toBeGreaterThanOrEqual(0);
     const states = g().concepts.map((c) => g().conceptState[c.id]);
     expect(readiness(states, g().exam)).toBeGreaterThan(0);
   });

@@ -72,6 +72,8 @@ So Guess is best under 50% sure, Pretty sure from 50% to about 83%, and Certain 
 
 **Calibration.** Guess counts as 35% sure, Pretty sure 67%, Certain 92%. The calibration gap is abs(mean stated probability minus accuracy) times 100 over the last 20 answers. Grade 3 for a gap of 5 or less, 2 for 10 or less, 1 for 15 or less, otherwise 0. Each Shift ends with a calibration bonus of 3 chips per grade point.
 
+**Ledger Pot.** Each bomb planted adds 5 chips to a pot. Defusing it (right at Pretty sure or Certain, on a different question, at least one Shift after planting) pays half its share. Exam Day pays the rest in proportion to readiness, trimmed by debt. The pot never costs chips.
+
 ### 4.2 Peg states and yields
 
 | State | Meaning | Looks like | Chip yield when a ball hits it |

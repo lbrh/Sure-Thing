@@ -6,7 +6,7 @@ import {
 import bank from "@/data/databases-101.json";
 import { SEEDED, loadUnit } from "@/lib/loadUnit";
 import type { Question } from "@/lib/engine";
-import { bestBet, betOutcome, boostPrice, breakEven, calibrationGap, calibrationGrade, evNet, incomeIndex, interest, pegPrice, rerollCost, studyPrice, tierUnlocked } from "@/lib/economy";
+import { defusePayout, examPotPayout, bestBet, betOutcome, boostPrice, breakEven, calibrationGap, calibrationGrade, evNet, incomeIndex, interest, pegPrice, rerollCost, studyPrice, tierUnlocked } from "@/lib/economy";
 
 const now = new Date("2026-10-02T10:00:00");
 const fresh = (id = "c") => newConceptState(id, now);
@@ -202,5 +202,24 @@ describe("shop price formulas", () => {
   it("interest is +1 per 10 held, capped at +3; rerolls cost 2 rising by 1", () => {
     expect([0, 9, 10, 29, 300].map(interest)).toEqual([0, 0, 1, 2, 3]);
     expect([0, 1, 2].map(rerollCost)).toEqual([2, 3, 4]);
+  });
+});
+
+describe("Ledger Pot", () => {
+  it("defusing pays half a bomb's share", () => {
+    expect(defusePayout(5)).toBe(3);
+    expect(defusePayout(10)).toBe(5);
+  });
+  it("Exam Day pays the rest by readiness, trimmed by debt, never below zero", () => {
+    expect(examPotPayout(20, 50, 100, 0)).toBe(10);
+    expect(examPotPayout(20, 50, 100, 100)).toBe(5);
+    expect(examPotPayout(20, 0, 100, 0)).toBe(0);
+    expect(examPotPayout(0, 100, 0, 999)).toBe(0);
+    for (const debt of [0, 10, 1e6]) expect(examPotPayout(30, 80, 50, debt)).toBeGreaterThanOrEqual(0);
+  });
+  it("a bomb that hasn't waited a Shift stays armed", () => {
+    const bomb = play(fresh(), "certain", false);
+    expect(updateState(bomb, { confidence: "pretty", correct: true, defusable: false }, 9, now).bombActive).toBe(true);
+    expect(updateState(bomb, { confidence: "pretty", correct: true }, 9, now).bombActive).toBe(false);
   });
 });

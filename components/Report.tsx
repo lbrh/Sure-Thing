@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useDerived, useGame } from "@/lib/store";
 import { calibration, calibrationByLevel, mastery, pegState, tonightsPlan, type PegState } from "@/lib/engine";
-import { CONF_LABEL } from "@/lib/copy";
+import { CONF_LABEL, LINES } from "@/lib/copy";
 import { brier, calibrationGap, calibrationGrade, CAL_WINDOW } from "@/lib/economy";
 import { Counter, Window } from "./ui";
 
@@ -50,7 +50,13 @@ export default function Report() {
           {brierAll !== null && ` · BRIER ${brierAll.toFixed(2)} (LOWER IS BETTER)`}
         </p>
         <p className="small">Grade 3: within 5 points. 2: within 10. 1: within 15. Guess counts as 35% sure, Pretty sure 67%, Certain 92%.</p>
-        <p className="mono">LEDGER DEBT {g.debt}</p>
+        <p className="mono">LEDGER DEBT {g.debt} · POT {g.pot}</p>
+        {g.exam?.potPaid !== undefined && (
+          <p className="mono">
+            EXAM DAY LEDGER: EARNED {g.exam.earned ?? 0} − DEBT {g.exam.debt ?? 0} = NET {(g.exam.earned ?? 0) - (g.exam.debt ?? 0)} · POT PAID {g.exam.potPaid}
+          </p>
+        )}
+        {g.exam?.potPaid !== undefined && <p className="note">“{LINES.examPot(g.exam.potPaid, g.exam.debt ?? 0)}”</p>}
         <p className="small">
           Based on {g.attempts.length} answer{g.attempts.length === 1 ? "" : "s"}
           {g.exam ? `, including Exam Day (${g.exam.correct}/${g.exam.total})` : ""}. An estimate to guide revision, not a grade prediction.

@@ -72,7 +72,7 @@ export function newConceptState(conceptId: string, now = new Date()): ConceptSta
 
 export function updateState(
   s: ConceptState,
-  a: { confidence: Confidence; correct: boolean },
+  a: { confidence: Confidence; correct: boolean; defusable?: boolean }, // a bomb only defuses once it has waited a Shift
   daysToExam: number,
   now = new Date()
 ): ConceptState {
@@ -81,7 +81,7 @@ export function updateState(
   if (a.correct) {
     if (a.confidence !== "guess") {
       box = Math.min(5, box + 1) as Box;
-      if (bombActive) {
+      if (bombActive && a.defusable !== false) {
         bombActive = false;
         box = Math.max(box, 2) as Box;
       }
@@ -217,6 +217,9 @@ export interface ExamResult {
   correct: number;
   total: number;
   at: string;
+  potPaid?: number; // Ledger Pot paid on Exam Day
+  debt?: number; // Ledger debt at Exam Day
+  earned?: number; // chips earned from Shifts this unit
 }
 
 /** Readiness estimate (0-100). Never a grade prediction. */

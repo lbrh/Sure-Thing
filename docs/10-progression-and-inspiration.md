@@ -79,7 +79,7 @@ The build already has Roulette and Blackjack pegs. More options, sorted by how w
 | Keno | Before a Shift, pick which concepts you expect to get right. Pays for accurate predictions, which is a calibration bet |
 | Bingo | A 3x3 card of concepts. Turning a full row Solid pays a bonus |
 | Double or nothing | After a win, double the chips by answering one more question at Certain. A knowledge bet, never a coin flip |
-| Progressive jackpot | A "ledger pot" that grows a little with every chip lost to a penalty, paid out when you defuse a bomb |
+| Progressive jackpot | Built as the Ledger Pot: +5 per bomb planted, half a bomb's share paid when it is defused a Shift or more later, the rest on Exam Day by readiness. It never costs chips |
 | Poker hands (the Balatro approach) | One ball's peg hits form a "hand" (three Solid pegs in a row, all five states) with a named bonus |
 | VIP or loyalty tiers | Tiers by lifetime chips earned, which pairs with the price tiers in section 1.2 |
 

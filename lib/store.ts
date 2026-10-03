@@ -8,7 +8,7 @@ import {
 } from "./engine";
 import { LINES } from "./copy";
 import {
-  betOutcome, calibrationBonus, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
+  betOutcome, calibrationBonus, defusePayout, examPotPayout, POT_PER_BOMB, calibrationGap, calibrationGrade, incomeIndex, interest, isPeg, isStudy, MAX_COPIES, priceOf, rerollCost, tierUnlocked,
   type PriceCtx,
 } from "./economy";
 import type { OwnedPeg, SpecialKind } from "./board";
@@ -80,6 +80,8 @@ export interface Reveal {
   mult: number;
   bombPlanted: boolean;
   bombDefused: boolean;
+  potPaid?: number; // Ledger Pot share paid for this defuse
+  bombWaiting?: boolean; // right on a bomb that hasn't waited a Shift yet
   secondChance: boolean;
   line: string;
   streak: number; // correct answers in a row, including this one
@@ -104,6 +106,8 @@ interface Data {
   attempts: Attempt[];
   chips: number;
   debt: number; // Ledger debt: no floor, never comes out of chips
+  pot: number; // Ledger Pot: +5 per bomb planted, paid out by defusing and on Exam Day
+  bombLedger: Record<string, BombEntry>;
   inventory: { secondChance: number; magnet: boolean; mega: boolean; quake: boolean; pegs: OwnedPeg[] };
   shop: ShopState;
   settings: Settings;
@@ -116,6 +120,13 @@ interface Data {
   session: Session | null;
   reveal: Reveal | null;
   line: string;
+}
+
+/** A planted bomb's share of the pot, and when and where it was planted. */
+export interface BombEntry {
+  share: number;
+  shift: number; // shiftsDone when planted; defusable once a later Shift starts
+  questionId: string;
 }
 
 export interface ShopState {
@@ -152,6 +163,8 @@ const initial: Data = {
   attempts: [],
   chips: START_CHIPS,
   debt: 0,
+  pot: 0,
+  bombLedger: {},
   inventory: { secondChance: 0, magnet: false, mega: false, quake: false, pegs: [] },
   shop: { boughtThisRun: {}, usesThisShift: {}, rerolls: 0, shiftIncome: [] },
   settings: { skin: "retro", calm: false, dailyCap: 6, sound: true, reducedMotion: false },
@@ -185,7 +198,13 @@ export const useGame = create<Data & Actions>()(
 
       const endSession = (session: Session) => {
         if (session.kind === "exam") {
-          set({ exam: { correct: session.correct, total: session.answered, at: new Date().toISOString() }, session: null, screen: "report" });
+          const exam = { correct: session.correct, total: session.answered, at: new Date().toISOString() };
+          set((s) => {
+            // Exam Day pays out the rest of the pot by readiness, settled against debt
+            const earned = s.shop.shiftIncome.reduce((a, b) => a + b, 0);
+            const potPaid = examPotPayout(s.pot, readiness(states(), exam), earned, s.debt);
+            return { exam: { ...exam, potPaid, debt: s.debt, earned }, chips: s.chips + potPaid, pot: 0, bombLedger: {}, session: null, screen: "report" };
+          });
           return;
         }
         const drop = Math.max(0, ready() - session.readinessBefore);
@@ -307,12 +326,22 @@ export const useGame = create<Data & Actions>()(
           const out = exam ? { chips: 0, debt: 0, balls: 0, plantBomb: betOutcome(confidence, correct).plantBomb } : betOutcome(confidence, correct, mult);
           const streak = exam ? s.streak : correct ? s.streak + 1 : 0; // Exam Day doesn't touch the streak
           const before = s.conceptState[q.conceptId];
-          const after = updateState(before, { confidence, correct }, days(), now);
+          const planted = s.bombLedger[q.conceptId];
+          // a bomb defuses on a different question, at least one Shift after it was planted
+          const defusable = !planted || (s.shiftsDone > planted.shift && planted.questionId !== q.id);
+          const after = updateState(before, { confidence, correct, defusable }, days(), now);
           const bombDefused = before.bombActive && !after.bombActive;
+          const bombWaiting = before.bombActive && after.bombActive && correct && confidence !== "guess" && !defusable;
+          const potPaid = bombDefused && planted ? defusePayout(planted.share) : 0;
+          const bombLedger = { ...s.bombLedger };
+          if (bombDefused) delete bombLedger[q.conceptId];
+          if (out.plantBomb) bombLedger[q.conceptId] = { share: (planted?.share ?? 0) + POT_PER_BOMB, shift: s.shiftsDone, questionId: q.id };
           const line = out.plantBomb
             ? LINES.certainWrong
             : bombDefused
-              ? LINES.bombDefused
+              ? LINES.bombDefused(potPaid)
+              : bombWaiting
+                ? LINES.bombWaiting
               : correct
                 ? { guess: LINES.guessRight, pretty: LINES.prettyRight, certain: LINES.certainRight }[confidence]
                 : confidence === "guess" ? LINES.guessWrong : LINES.prettyWrong;
@@ -321,8 +350,11 @@ export const useGame = create<Data & Actions>()(
             attempts: [...s.attempts, attempt],
             conceptState: { ...s.conceptState, [q.conceptId]: after },
             debt: s.debt + out.debt,
+            pot: s.pot - potPaid + (out.plantBomb ? POT_PER_BOMB : 0),
+            chips: s.chips + potPaid,
+            bombLedger,
             streak,
-            reveal: { ...base, balls: out.balls, chips: out.chips, debt: out.debt, mult, bombPlanted: out.plantBomb, bombDefused, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
+            reveal: { ...base, balls: out.balls, chips: out.chips, debt: out.debt, mult, bombPlanted: out.plantBomb, bombDefused, potPaid, bombWaiting, secondChance: false, line, streak, lostStreak: !exam && !correct ? s.streak : 0 },
             session: {
               ...session,
               answered: session.answered + 1,
@@ -334,6 +366,8 @@ export const useGame = create<Data & Actions>()(
               dropSeed: s.attempts.length + 1,
               mult,
               debtAdded: (session.debtAdded ?? 0) + out.debt,
+              skillChips: (session.skillChips ?? 0) + potPaid, // defusing is knowledge
+              chipsEarned: session.chipsEarned + potPaid,
               correct: session.correct + (correct ? 1 : 0),
               bombsPlanted: out.plantBomb ? [...session.bombsPlanted, q.conceptId] : session.bombsPlanted,
               bombsDefused: bombDefused ? [...session.bombsDefused, q.conceptId] : session.bombsDefused,

@@ -151,3 +151,20 @@ export function priceOf(item: Item, c: PriceCtx): { price: number; next: number;
     reason: `Tier ${c.tier} peg. +15% for each copy you own (${n} of ${MAX_COPIES}).${c.tier < 4 ? " Master more concepts to unlock a stronger tier." : ""}${idx}`,
   };
 }
+
+/* ---------- Ledger Pot ---------- */
+
+/** Every bomb planted adds 5 chips to the pot. The pot never costs the player chips and is separate from debt. */
+export const POT_PER_BOMB = 5;
+/** Defusing a bomb (right at Pretty sure or Certain, different question, at least one Shift later) pays 50% of its share. */
+export const DEFUSE_SHARE = 0.5;
+export const defusePayout = (share: number) => Math.round(share * DEFUSE_SHARE);
+/**
+ * Exam Day pays out the rest in proportion to readiness, settled against Ledger debt:
+ * the payout is scaled by earned / (earned + debt), so debt shrinks it but can never make it cost anything.
+ */
+export function examPotPayout(pot: number, readiness: number, earned: number, debt: number) {
+  const gross = pot * Math.max(0, Math.min(100, readiness)) / 100;
+  const honesty = earned + debt > 0 ? earned / (earned + debt) : 1;
+  return Math.max(0, Math.round(gross * honesty));
+}

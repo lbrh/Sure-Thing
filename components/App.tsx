@@ -65,6 +65,9 @@ export default function App() {
           <Counter label="STREAK" value={g.streak} digits={2} />
           <Counter label="DEBT" value={g.debt} digits={3} />
           <span className="hide-sm">
+            <Counter label="POT" value={g.pot} digits={3} />
+          </span>
+          <span className="hide-sm">
             <Counter label="TO GO" value={`${debt}%`} />
           </span>
           <button className="btn small" onClick={() => g.go("settings")}>
@@ -392,10 +395,14 @@ function Hub({ reduced }: { reduced: boolean }) {
             <li>Weakest: {weakest.length ? weakest.join(", ") : "nothing tried yet"}</li>
             <li>Bombs: {bombs.length ? bombs.map(name).join(", ") : "none"}</li>
             <li>Ledger debt: {g.debt} (never taken from your {t.chips})</li>
+            <li>
+              Ledger Pot: {g.pot}. Each bomb adds {5}. Defusing one (right at Pretty sure or Certain, a different question, at least one Shift later) pays half its share. Exam Day pays the rest by readiness.
+            </li>
             {mods.length > 0 && <li>Ready for next Shift: {mods.join(", ")}</li>}
           </ul>
         </Window>
         <Collector line={capHit ? LINES.cap : g.line || LINES.hub} />
+        {g.pot > 0 && <Collector line={LINES.pot(g.pot)} />}
         <div className="stack">
           {inProgress(g.session) ? (
             <button className="btn success big pulse-glow" onClick={g.resume}>
@@ -626,6 +633,8 @@ function RevealScreen({ reduced }: { reduced: boolean }) {
             </table>
           )}
           {r.secondChance && <p>No {t.chips} lost, no bomb, streak safe. Have another go.</p>}
+          {(r.potPaid ?? 0) > 0 && <p className="mono">LEDGER POT PAYS +{r.potPaid} {t.chips.toUpperCase()}</p>}
+          {r.bombWaiting && <p className="small">The bomb stays until your next Shift. Spaced retests stick better than same-day ones.</p>}
           <div className="row">
             {!exam && r.correct && !r.secondChance && <Counter label={`+${t.Chips.toUpperCase()}`} value={r.chips} digits={2} />}
             {!exam && r.correct && !r.secondChance && <Counter label="BONUS BALL" value={r.balls} digits={1} />}

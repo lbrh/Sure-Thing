@@ -2,7 +2,7 @@
 
 What the first commit (`7da60fc`, "init: initialize project with basic configuration and structure") actually ships, and where it differs from the plans in docs 01 to 08. When a plan doc and this doc disagree, this doc describes the code as it is.
 
-Status as of 2 October 2026. `npm test` passes: 4 files, 67 tests.
+Status as of 2 October 2026. `npm test` passes: 4 files, 70 tests.
 
 ## 1. Summary
 
@@ -24,7 +24,7 @@ The biggest departures from the plan:
 | Scoring and chip economy | Done, extended | Table as planned, plus a streak multiplier and 5 starting chips |
 | Reveal with "why this is tempting" | Done | Answer key table, misconception line, explanation, Collector line |
 | Plinko board from concept states | Done | Matter.js, 2 scoring pegs per concept, 7 buckets |
-| Leitner mastery and bomb retests | Done | As specced in doc 03 section 5 |
+| Leitner mastery and bomb retests | Done, changed | As specced in doc 03 section 5, except a bomb only defuses at least one Shift after it was planted. A same-Shift retest still moves the box but leaves the bomb armed |
 | Shop | Done, extended | Second Chance and Defuser always on sale, plus 3 rotating "crazy offers" from 9 items |
 | Readiness report | Done | Mastery bars, confidence gap, sure-and-wrong list, tonight's plan, calibration chart, Brier score, share text |
 | Safe play basics | Done | Chips never go negative (penalties are Ledger debt), daily Shift cap, Calm mode, odds tables |
@@ -62,6 +62,7 @@ You can leave a Shift mid-way (to the Shop, Report or Hub) and resume exactly wh
 | Ball value | `(1 + sum of peg yields) * bucket * 0.28`, rounded, floored at 0 |
 | Streak multiplier | Counts correct answers only. The next answer plays at x1, x1.5, x2, x2.5, then capped at x3, applied to its gain and its debt alike, never to the bonus ball. A wrong answer resets it. Exam Day leaves it alone. Second Chance keeps it safe |
 | Calibration | Guess 0.35, Pretty sure 0.67, Certain 0.92. Gap over the last 20 answers, grade 0 to 3. Each Shift ends with +3 chips per grade point. The Readiness Report shows the grade and the Brier score |
+| Ledger Pot | Every bomb planted adds 5 chips to a visible pot (POT hit counter, hub, Collector lines). A bomb defuses only on a right Pretty sure or Certain answer to a different question at least one Shift after planting, and that pays 50% of its share. Exam Day pays the rest scaled by readiness and by earned / (earned + debt). The pot never costs chips |
 | Skill share | Shift summary meter: chips from correct answers, popup questions and calibration versus chips from buckets, the wheel and other specials. Target 80% or more |
 | Daily Shift cap | Default 6, adjustable 1 to 12 |
 
